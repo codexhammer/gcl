@@ -11,21 +11,28 @@ class SimpleNASController(torch.nn.Module):
         for single_action in actions:
             structure = []
             for action, action_name in zip(single_action, self.action_list):
-                predicted_actions = self.search_space[action_name][action]
+                predicted_actions = self.search_space_gnn[action_name][action]
                 structure.append(predicted_actions)
             structure_list.append(structure)
         return structure_list
 
-    def __init__(self, args, search_space, action_list, controller_hid=100, cuda=True, mode="train",
-                 softmax_temperature=5.0, tanh_c=2.5):
-        if not self.check_action_list(action_list, search_space):
+    def __init__(self, args, 
+                search_space_gnn, search_space_mlp,
+                action_list_gnn, action_list_mlp,
+                controller_hid=100, cuda=True, mode="train",
+                softmax_temperature=5.0, tanh_c=2.5):
+
+        if not self.check_action_list(action_list_gnn, action_list_mlp, search_space_gnn, search_space_mlp):
             raise RuntimeError("There are actions not contained in search_space")
         super(SimpleNASController, self).__init__()
         self.mode = mode
         # search space or operators set containing operators used to build GNN
-        self.search_space = search_space
+        self.search_space_gnn = search_space_gnn
+        self.search_space_mlp = search_space_mlp
         # operator categories for each controller RNN output
-        self.action_list = action_list
+        self.action_list_gnn = action_list_gnn
+        self.action_list_mlp = action_list_mlp
+
         self.controller_hid = controller_hid
         self.is_cuda = cuda
 
@@ -41,8 +48,8 @@ class SimpleNASController(torch.nn.Module):
 
         # build encoder
         self.num_tokens = []
-        for key in self.search_space:
-            self.num_tokens.append(len(self.search_space[key]))
+        for key in self.search_space_gnn:
+            self.num_tokens.append(len(self.search_space_gnn[key]))
 
         num_total_tokens = sum(self.num_tokens)  # count action type
         self.encoder = torch.nn.Embedding(num_total_tokens, controller_hid)
@@ -52,31 +59,40 @@ class SimpleNASController(torch.nn.Module):
 
         # build decoder
         self._decoders = torch.nn.ModuleDict()
-        for key in self.search_space:
-            size = len(self.search_space[key])
+        for key in self.search_space_gnn:
+            size = len(self.search_space_gnn[key])
             decoder = torch.nn.Linear(controller_hid, size)
             self._decoders[key] = decoder
 
         self.reset_parameters()
 
     # use to scale up the predicted network
-    def update_action_list(self, action_list):
-        if not self.check_action_list(action_list, self.search_space):
+    def update_action_list(self, action_list_gnn, action_list_mlp, search_space_gnn, search_space_mlp):
+        if not self.check_action_list(action_list_gnn, action_list_mlp, search_space_gnn, search_space_mlp):
             raise RuntimeError("There are actions not contained in search_space")
 
-        self.action_list = action_list
+        self.action_list_gnn = action_list_gnn
+        self.action_list_mlp = action_list_mlp
 
     @staticmethod
-    def check_action_list(action_list, search_space):
-        if isinstance(search_space, dict):
-            keys = search_space.keys()
+    def check_action_list(action_list_gnn, action_list_mlp, search_space_gnn, search_space_mlp):
+        if isinstance(search_space_gnn, dict) and isinstance(search_space_mlp, dict):
+            keys_gnn = list(search_space_gnn.keys())
+            keys_mlp = list(search_space_mlp.keys())
         else:
             return False
-        for each in action_list:
-            if each in keys:
+        for each in action_list_gnn:
+            if each in keys_gnn:
                 pass
             else:
                 return False
+
+        for each in action_list_mlp:
+            if each in keys_mlp:
+                pass
+            else:
+                return False
+
         return True
 
     def reset_parameters(self):
@@ -106,7 +122,7 @@ class SimpleNASController(torch.nn.Module):
         return logits, (hx, cx)
 
     def action_index(self, action_name):
-        key_names = self.search_space.keys()
+        key_names = self.search_space_gnn.keys()
         for i, key in enumerate(key_names):
             if action_name == key:
                 return i

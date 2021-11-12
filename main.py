@@ -22,12 +22,13 @@ def register_default_args(parser):
                         choices=['train', 'derive'],
                         help='train: Training GCL, derive: Deriving Architectures')
     parser.add_argument('--random_seed', type=int, default=123)
-    parser.add_argument("--cuda", type=bool, default=True, required=False,
+    parser.add_argument("--cuda", type=bool, default=False, required=False,
                         help="run in cuda mode")
     parser.add_argument('--save_epoch', type=int, default=2)
     parser.add_argument('--max_save_num', type=int, default=5)
     # controller
     parser.add_argument('--layers_of_child_model', type=int, default=2)
+    parser.add_argument('--hidden_layers_of_mlp', type=int, default=2)
     parser.add_argument('--shared_initial_step', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--entropy_mode', type=str, default='reward', choices=['reward', 'regularizer'])

@@ -77,13 +77,16 @@ class Trainer(object):
             # generate model description in macro way (generate entire network description)
             from search_space import MacroSearchSpace
             search_space_cls = MacroSearchSpace()
-            self.search_space = search_space_cls.get_search_space()
-            self.action_list = search_space_cls.generate_action_list(self.args.layers_of_child_model)
+            self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
+            self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(self.args.layers_of_child_model,self.args.hidden_layers_of_mlp)
             # build RNN controller
             from graphnas_controller import SimpleNASController
-            self.controller = SimpleNASController(self.args, action_list=self.action_list,
-                                                  search_space=self.search_space,
-                                                  cuda=self.args.cuda)
+            self.controller = SimpleNASController(self.args, 
+                                                search_space_gnn = self.search_space_gnn,
+                                                search_space_mlp = self.search_space_mlp,
+                                                action_list_gnn = self.action_list_gnn,
+                                                action_list_mlp = self.action_list_mlp,                                                   
+                                                cuda=self.args.cuda)
 
             # if self.args.dataset in ["cora", "citeseer", "pubmed"]:
             #     # implements based on dgl

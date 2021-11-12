@@ -26,6 +26,7 @@ class GraphNet(torch.nn.Module):
         
         # check structure of GNN
         self.layer_nums = self.evalate_actions(actions, state_num)
+        self.head_num = 1
 
         # layer module
         self.build_model(actions, batch_normal, drop_out, num_feat, num_label, state_num)
@@ -37,8 +38,6 @@ class GraphNet(torch.nn.Module):
             self.bns = torch.nn.ModuleList()
         self.layers = torch.nn.ModuleList()
         self.acts = []
-        self.gates = torch.nn.ModuleList()
-        self.prediction = None
         self.build_hidden_layers(actions, batch_normal, drop_out, self.layer_nums, num_feat, num_label, state_num)
 
     def evalate_actions(self, actions, state_num):
@@ -56,9 +55,8 @@ class GraphNet(torch.nn.Module):
         hidden_units_list = []
         out_channels_list = []
         for i in range(layer_nums):
-            head_num = actions[i * state_num + 3]
-            out_channels = actions[i * state_num + 4]
-            hidden_units_list.append(head_num * out_channels)
+            out_channels = actions[i * state_num + 0]
+            hidden_units_list.append(self.head_num * out_channels)
             out_channels_list.append(out_channels)
 
         return out_channels_list[-1] == self.num_label
@@ -71,26 +69,25 @@ class GraphNet(torch.nn.Module):
             if i == 0:
                 in_channels = num_feat
             else:
-                in_channels = out_channels * head_num
+                in_channels = out_channels * self.head_num
 
             # extract layer information
-            attention_type = actions[i * state_num + 0]
-            aggregator_type = actions[i * state_num + 1]
-            act = actions[i * state_num + 2]
-            head_num = actions[i * state_num + 3]
-            out_channels = actions[i * state_num + 4]
+            # attention_type = actions[i * state_num + 0]
+            # aggregator_type = actions[i * state_num + 1]
+            # act = actions[i * state_num + 2]
+            # head_num = actions[i * state_num + 3]
+            out_channels = actions[i * state_num + 0]
             concat = True
             if i == layer_nums - 1:
                 concat = False
             if self.batch_normal:
                 self.bns.append(torch.nn.BatchNorm1d(in_channels, momentum=0.5))
             self.layers.append(
-                GeoLayer(in_channels, out_channels, head_num, concat, dropout=self.dropout,
-                         att_type=attention_type, agg_type=aggregator_type, ))
-            self.acts.append(act_map(act))
+                GeoLayer(in_channels, out_channels, self.head_num, concat, dropout=self.dropout ))
+            self.acts.append(act_map())
             if self.residual:
                 if concat:
-                    self.fcs.append(torch.nn.Linear(in_channels, out_channels * head_num))
+                    self.fcs.append(torch.nn.Linear(in_channels, out_channels * self.head_num))
                 else:
                     self.fcs.append(torch.nn.Linear(in_channels, out_channels))
 
