@@ -1,5 +1,5 @@
 import torch
-import torch.nn.functional as F
+# import torch.nn.functional as F
 # from torch_geometric.nn.inits import glorot, zeros
 # from torch_geometric.utils import remove_self_loops, add_self_loops, add_remaining_self_loops, softmax
 # from torch_scatter import scatter_add
@@ -9,7 +9,6 @@ import torch.nn as nn
 # from graphnas_variants.macro_graphnas.pyg.message_passing import MessagePassing
 # from torch_geometric.nn import MessagePassing
 
-#########################         Not working ########### Error in mat-mul
 class GeoLayer(nn.Module):
 
     def __init__(self,
@@ -75,9 +74,15 @@ class GeoLayer(nn.Module):
             
             with torch.no_grad():
                 if self.att_type == "gcn":
-                    self.gnn_list[i].lin.weight = nn.Parameter(torch.cat((model_param["lin.weight"],torch.randn(wgt_add[i],self.channels[i])),0))
+                    self.gnn_list[i].lin.weight[0:model_param["lin.weight"].shape[0] , 0:model_param["lin.weight"].shape[1]] = model_param["lin.weight"]
                     if self.bias:
-                        self.gnn_list[i].bias = nn.Parameter(torch.cat((model_param["bias"],torch.zeros(wgt_add[i])),0))
+                        # b = torch.cat((model_param["bias"],torch.zeros(wgt_add[i])),0)
+                        # print("Initial bias = {}, Updated bias = {}".format(model_param["bias"].shape, self.gnn_list[i].bias.shape))
+                        self.gnn_list[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
+                
+                # if self.att_type == "gat":
+                #     self.gnn_list[i].lin_src.weight[0:model_param["lin_src.weight"].shape[0] , 0:model_param["lin_src.weight"].shape[1]] = 
+                        
                         
 
     def forward(self,x,edge_index):
@@ -85,31 +90,30 @@ class GeoLayer(nn.Module):
             x = self.gnn_list[i](x, edge_index)
         return x
         
-geo = GeoLayer(channels = [2,3,4])
+# geo = GeoLayer(channels = [2,3,4])
 
-print("Initial parameters")
+# print("Initial parameters")
 
-for n,p in geo.named_parameters():
-    print(n,p.shape,end="\n\n")
+# edge_index = torch.tensor([[0, 1],
+#                            [1, 0],
+#                            [1, 2],
+#                            [2, 1]], dtype=torch.long).t().contiguous()
 
-edge_index = torch.tensor([[0, 1],
-                           [1, 0],
-                           [1, 2],
-                           [2, 1]], dtype=torch.long).t().contiguous()
+# x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
 
-x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
+# for n,p in geo.named_parameters():
+#     print(n,p.shape,end="\n\n")
 # print(geo(x,edge_index))
-print("*"*120)
-# mod["lin.weight"]
-hid = [1,1]
-geo.weight_update(hid)
-# geo(data.x, data.edge_index)
+# print("*"*120)
 
-print("Updated parameters")
-print(geo(x,edge_index))
-for n,p in geo.named_parameters():
-    print(n,p.shape,end="\n\n")
-print("-"*100)
+# hid = [1,2]
+# geo.weight_update(hid)
+
+# print("Updated parameters")
+# print(geo(x,edge_index))
+# for n,p in geo.named_parameters():
+#     print(n,p.shape,end="\n\n")
+# print("-"*100)
 
     
     # @staticmethod
