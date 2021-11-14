@@ -104,4 +104,67 @@ class GraphNet(torch.nn.Module):
                 if self.batch_normal:
                     output = self.bns[i](output)
 
-                output = act(layer(outpu
+                output = act(layer(output, edge_index_all) + fc(output))
+        else:
+            for i, (act, layer) in enumerate(zip(self.acts, self.layers)):
+                output = F.dropout(output, p=self.dropout, training=self.training)
+                if self.batch_normal:
+                    output = self.bns[i](output)
+                output = act(layer(output, edge_index_all))
+        if not self.multi_label:
+            output = F.log_softmax(output, dim=1)
+        return output
+
+    def __repr__(self):
+        result_lines = ""
+        for each in self.layers:
+            result_lines += str(each)
+        return result_lines
+
+    @staticmethod
+    def merge_param(old_param, new_param, update_all):
+        for key in new_param:
+            if update_all or key not in old_param:
+                old_param[key] = new_param[key]
+        return old_param
+
+    def get_param_dict(self, old_param=None, update_all=True):
+        if old_param is None:
+            result = {}
+        else:
+            result = old_param
+        for i in range(self.layer_nums):
+            key = "layer_%d" % i
+            new_param = self.layers[i].get_param_dict()
+            if key in result:
+                new_param = self.merge_param(result[key], new_param, update_all)
+                result[key] = new_param
+            else:
+                result[key] = new_param
+        if self.residual:
+            for i, fc in enumerate(self.fcs):
+                key = f"layer_{i}_fc_{fc.weight.size(0)}_{fc.weight.size(1)}"
+                result[key] = self.fcs[i]
+        if self.batch_normal:
+            for i, bn in enumerate(self.bns):
+                key = f"layer_{i}_fc_{bn.weight.size(0)}"
+                result[key] = self.bns[i]
+        return result
+
+    def load_param(self, param):
+        if param is None:
+            return
+
+        for i in range(self.layer_nums):
+            self.layers[i].load_param(param["layer_%d" % i])
+
+        if self.residual:
+            for i, fc in enumerate(self.fcs):
+                key = f"layer_{i}_fc_{fc.weight.size(0)}_{fc.weight.size(1)}"
+                if key in param:
+                    self.fcs[i] = param[key]
+        if self.batch_normal:
+            for i, bn in enumerate(self.bns):
+                key = f"layer_{i}_fc_{bn.weight.size(0)}"
+                if key in param:
+                    self.bns[i] = param[key]
