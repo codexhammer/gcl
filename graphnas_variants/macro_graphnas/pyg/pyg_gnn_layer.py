@@ -90,30 +90,30 @@ class GeoLayer(nn.Module):
             x = self.gnn_list[i](x, edge_index)
         return x
         
-# geo = GeoLayer(channels = [2,3,4])
+geo = GeoLayer(channels = [2,3,4])
 
-# print("Initial parameters")
+print("Initial parameters")
 
-# edge_index = torch.tensor([[0, 1],
-#                            [1, 0],
-#                            [1, 2],
-#                            [2, 1]], dtype=torch.long).t().contiguous()
+edge_index = torch.tensor([[0, 1],
+                           [1, 0],
+                           [1, 2],
+                           [2, 1]], dtype=torch.long).t().contiguous()
 
-# x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
+x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
 
-# for n,p in geo.named_parameters():
-#     print(n,p.shape,end="\n\n")
-# print(geo(x,edge_index))
-# print("*"*120)
+for n,p in geo.named_parameters():
+    print(n,p.shape,end="\n\n")
+print(geo(x,edge_index))
+print("*"*120)
 
-# hid = [1,2]
-# geo.weight_update(hid)
+hid = [1,2]
+geo.weight_update(hid)
 
-# print("Updated parameters")
-# print(geo(x,edge_index))
-# for n,p in geo.named_parameters():
-#     print(n,p.shape,end="\n\n")
-# print("-"*100)
+print("Updated parameters")
+print(geo(x,edge_index))
+for n,p in geo.named_parameters():
+    print(n,p.shape,end="\n\n")
+print("-"*100)
 
     
     # @staticmethod
