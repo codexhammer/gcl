@@ -8,7 +8,7 @@ import torch_geometric.transforms as T
 from torch_geometric.datasets import Planetoid, Coauthor, Amazon
 
 # from gnn_model_manager import CitationGNNManager, evaluate
-from graphnas_variants.macro_graphnas.pyg.pyg_gnn import GraphNet
+from pyg_gnn import GraphNet
 from utils.model_utils import EarlyStop, TopAverage, process_action
 
 
