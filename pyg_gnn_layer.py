@@ -1,267 +1,141 @@
 import torch
-# import torch.nn.functional as F
-# from torch_geometric.nn.inits import glorot, zeros
-# from torch_geometric.utils import remove_self_loops, add_self_loops, add_remaining_self_loops, softmax
-# from torch_scatter import scatter_add
 from torch_geometric.nn import GCNConv,GATConv,SGConv
 import torch.nn as nn
+# import torch.nn.functional as F
 
-# from graphnas_variants.macro_graphnas.pyg.message_passing import MessagePassing
-# from torch_geometric.nn import MessagePassing
-
-class GeoLayer(nn.Module):
+class GraphLayer(nn.Module):
 
     def __init__(self,
-                 channels,
-                 heads=1,
-                 concat=True,
-                 negative_slope=0.2,
-                 dropout=0,
+                 channels_gnn,
+                 channels_mlp,
+                 heads=2,
                  att_type="gcn",
-                 bias=True,):
+                 num_class=5,
+                 bias_gnn=True,
+                 bias_mlp=True):
         super().__init__()
         
-        self.channels = channels
-        # self.out_channels = out_channels
-        self.heads = heads
-        self.concat = concat
-        self.negative_slope = negative_slope
-        self.dropout = dropout
+        self.channels_gnn = channels_gnn
         self.att_type = att_type
-        self.bias = bias
-
-        self.gnn_list = nn.ModuleList()
-
-        for channel_no in range(len(self.channels)-1):
-            if self.att_type == "gcn":
-                gnn = GCNConv(in_channels=self.channels[channel_no], out_channels=self.channels[channel_no+1], bias=self.bias)
+        self.bias_gnn = bias_gnn
+        self.heads = heads
+        self.gnn = nn.ModuleList()
         
-            if self.att_type == "gat":
-                gnn = GATConv(in_channels = self.channels[channel_no], out_channels = self.channels[channel_no+1], heads = self.heads,bias=self.bias)
+        for channel_no in range(len(channels_gnn)-1):
+            if self.att_type == "gcn":
+                self.gnn.append(GCNConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias=bias_gnn))
+                
+            elif self.att_type == "gat":
+                self.gnn.append(GATConv(in_channels = channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], heads = self.heads,bias=bias_gnn,concat=False))
 
-            if self.att_type == "sg":
-                gnn = SGConv(in_channels=self.channels[channel_no], out_channels=self.channels[channel_no+1], bias = self.bias)
+            elif self.att_type == "sg":
+                self.gnn.append(SGConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias = bias_gnn))
+            
+            else:
+                raise Exception("Check gnn type!")
 
-            self.gnn_list.append(gnn)
-    
+        
+        self.channels_mlp = channels_mlp        
+        self.bias_mlp = bias_mlp
+        self.num_class = num_class
+        self.linear = nn.ModuleList()
+        self.channels_mlp.insert(0,channels_gnn[-1])
+        self.channels_mlp.append(num_class)
+
+        for channel_no in range(0,len(channels_mlp)-1):
+            self.linear.append(nn.Linear(channels_mlp[channel_no],channels_mlp[channel_no+1], bias=bias_mlp))
+            
     def model_parameters(self, model):
         return model.state_dict()
 
-    def weight_update(self, wgt_add):
-        
-        for i in range(len(self.gnn_list)):
-            model_param = self.model_parameters(self.gnn_list[i])
+    def weight_update_gnn(self, wgt_add):
+        assert len(self.gnn) == len(wgt_add), "Match number of GNNs and feature additions"
+
+        for i in range(1,len(self.channels_gnn)):
+            self.channels_gnn[i] = self.channels_gnn[i] + wgt_add[i-1]
+
+        for i in range(len(self.gnn)):
+            model_param = self.model_parameters(self.gnn[i])
             
-            if i==0:
-                if self.att_type == "gcn":
-                    self.gnn_list[i] = GCNConv(in_channels = self.channels[i], out_channels = self.channels[i+1]+wgt_add[i], bias=self.bias)
-        
-                if self.att_type == "gat":
-                    self.gnn_list[i] = GATConv(in_channels = self.channels[i], out_channels = self.channels[i+1]+wgt_add[i], heads = self.heads, bias=self.bias)
+            if self.att_type == "gcn":
+                self.gnn[i] = GCNConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], bias=self.bias_gnn)
 
-                if self.att_type == "sg":
-                    self.gnn_list[i] = SGConv(in_channels = self.channels[i], out_channels = self.channels[i+1]+wgt_add[i], bias = self.bias)
+            elif self.att_type == "gat":
+                self.gnn.append(GATConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], heads = self.heads, bias=self.bias_gnn, concat=False))
 
-            else:
-                if self.att_type == "gcn":
-                    self.gnn_list[i] = GCNConv(in_channels = self.channels[i]+wgt_add[i-1], out_channels = self.channels[i+1]+wgt_add[i], bias=self.bias)
-        
-                if self.att_type == "gat":
-                    self.gnn_list[i] = GATConv(in_channels = self.channels[i]+wgt_add[i-1], out_channels = self.channels[i+1]+wgt_add[i], heads = self.heads, bias=self.bias)
+            elif self.att_type == "sg":
+                self.gnn.append(SGConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn))
 
-                if self.att_type == "sg":
-                    self.gnn_list[i] = SGConv(in_channels = self.channels[i]+wgt_add[i-1], out_channels = self.channels[i+1]+wgt_add[i], bias = self.bias)
-            
+
             with torch.no_grad():
                 if self.att_type == "gcn":
-                    self.gnn_list[i].lin.weight[0:model_param["lin.weight"].shape[0] , 0:model_param["lin.weight"].shape[1]] = model_param["lin.weight"]
-                    if self.bias:
-                        # b = torch.cat((model_param["bias"],torch.zeros(wgt_add[i])),0)
-                        # print("Initial bias = {}, Updated bias = {}".format(model_param["bias"].shape, self.gnn_list[i].bias.shape))
-                        self.gnn_list[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
-                
-                # if self.att_type == "gat":
-                #     self.gnn_list[i].lin_src.weight[0:model_param["lin_src.weight"].shape[0] , 0:model_param["lin_src.weight"].shape[1]] = 
+                    self.gnn[i].lin.weight[0:model_param["lin.weight"].shape[0] , 0:model_param["lin.weight"].shape[1]] = model_param["lin.weight"]
+                    if self.bias_gnn:
+                        self.gnn[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
+                else:
+                    raise Exception("Not implemented error")                 #  Implemenation needed  
                         
-                        
-
-    def forward(self,x,edge_index):
-        for i in range(len(self.gnn_list)):
-            x = self.gnn_list[i](x, edge_index)
-        return x
+    def weight_update_mlp(self, wgt_add):
+        assert len(self.linear)-1 == len(wgt_add), "Match number of Linear layers and node additions"
+        self.channels_mlp[0] = self.channels_gnn[-1] #Change here!
         
-# geo = GeoLayer(channels = [2,3,7])
+        for i in range(1,len(self.channels_mlp)-1):
+            self.channels_mlp[i] = self.channels_mlp[i] + wgt_add[i-1]
+
+        for i in range(len(self.linear)):
+            model_param = self.model_parameters(self.linear[i])
+            self.linear[i] = nn.Linear(self.channels_mlp[i], self.channels_mlp[i+1], bias=self.bias_mlp)
+            with torch.no_grad():
+                self.linear[i].weight[0:model_param["weight"].shape[0] , 0:model_param["weight"].shape[1]] = model_param["weight"]
+                if self.bias_mlp:
+                    self.linear[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]                
+  
+    def forward(self,x,edge_index):
+        for i in range(len(self.gnn)):
+            x = self.gnn[i](x, edge_index)
+        for i in range(len(self.linear)):
+            x = self.linear[i](x)
+        return x
 
 # print("Initial parameters")
 
 # edge_index = torch.tensor([[0, 1],
 #                            [1, 0],
 #                            [1, 2],
-#                            [2, 1]], dtype=torch.long).t().contiguous()
+#                            [2, 1],
+#                            ], dtype=torch.long).t().contiguous()
 
 # x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
 
-# for n,p in geo.named_parameters():
-#     print(n,p,end="\n\n")
-# print(geo(x,edge_index))
+# geo = GraphLayer(channels_gnn = [x.shape[1],3,5], channels_mlp=[8,3])
+
+# # for n,p in geo.named_parameters():
+# #     print(n,p,end="\n")
+
+# out_ini = geo(x,edge_index)
+# print("Output",out_ini)
+
+# print("--"*120,"\nUpdated parameters")
+# wgt_add_gnn = [1,2]
+# geo.weight_update_gnn(wgt_add_gnn)
+# wgt_add_mlp = [7,3]
+# geo.weight_update_mlp(wgt_add_mlp)
+
+# # for n,p in geo.named_parameters():
+# #     print(n,p,end="\n")
+
+# out_upd = geo(x,edge_index)
+# print(out_upd)
+
 # print("*"*120)
+# print("Update again!")
+# wgt_add_gnn = [4,2]
+# geo.weight_update_gnn(wgt_add_gnn)
+# wgt_add_mlp = [7,5]
+# geo.weight_update_mlp(wgt_add_mlp)
 
-# hid = [1,2]
-# geo.weight_update(hid)
-
-# print("Updated parameters")
-# for n,p in geo.named_parameters():
-#     print(n,p,end="\n\n")
+# # for n,p in geo.named_parameters():
+# #     print(n,p,end="\n")
 # print("-"*100)
-# print(geo(x,edge_index))
-    
-    # @staticmethod
-    # def norm(edge_index, num_nodes, edge_weight, improved=False, dtype=None):
-    #     if edge_weight is None:
-    #         edge_weight = torch.ones((edge_index.size(1), ),
-    #                                  dtype=dtype,
-    #                                  device=edge_index.device)
-
-    #     fill_value = 1.0
-    #     edge_index, edge_weight = add_remaining_self_loops(
-    #         edge_index, edge_weight,fill_value, num_nodes)
-
-    #     row, col = edge_index
-    #     deg = scatter_add(edge_weight, row, dim=0, dim_size=num_nodes)
-    #     deg_inv_sqrt = deg.pow(-0.5)
-    #     deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-
-    #     return edge_index, deg_inv_sqrt[row] * edge_weight * deg_inv_sqrt[col]
-
-    # def reset_parameters(self):
-    #     glorot(self.weight)
-    #     glorot(self.att)
-    #     zeros(self.bias)
-
-    #     if self.att_type in ["generalized_linear"]:
-    #         glorot(self.general_att_layer.weight)
-
-    #     if self.pool_dim != 0:
-    #         for layer in self.pool_layer:
-    #             glorot(layer.weight)
-    #             zeros(layer.bias)
-
-    # def forward(self, x, edge_index):
-    #     """"""
-    #     edge_index, _ = remove_self_loops(edge_index)
-    #     edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
-    #     # prepare
-    #     x = torch.mm(x, self.weight).view(-1, self.heads, self.out_channels)
-    #     return self.propagate(edge_index, x=x, num_nodes=x.size(0))
-
-    # def message(self, x_i, x_j, edge_index, num_nodes):
-
-    #     if self.att_type == "const":
-    #         if self.training and self.dropout > 0:
-    #             x_j = F.dropout(x_j, p=self.dropout, training=True)
-    #         neighbor = x_j
-    #     elif self.att_type == "gcn":
-    #         if self.gcn_weight is None or self.gcn_weight.size(0) != x_j.size(0):  # 对于不同的图gcn_weight需要重新计算
-    #             _, norm = self.norm(edge_index, num_nodes, None)
-    #             self.gcn_weight = norm
-    #         neighbor = self.gcn_weight.view(-1, 1, 1) * x_j
-    #     else:
-    #         # Compute attention coefficients.
-    #         alpha = self.apply_attention(edge_index, num_nodes, x_i, x_j)
-    #         alpha = softmax(alpha, edge_index[0], num_nodes)
-    #         # Sample attention coefficients stochastically.
-    #         if self.training and self.dropout > 0:
-    #             alpha = F.dropout(alpha, p=self.dropout, training=True)
-
-    #         neighbor = x_j * alpha.view(-1, self.heads, 1)
-    #     if self.pool_dim > 0:
-    #         for layer in self.pool_layer:
-    #             neighbor = layer(neighbor)
-    #     return neighbor
-
-    # def apply_attention(self, edge_index, num_nodes, x_i, x_j):
-    #     if self.att_type == "gat":
-    #         alpha = (torch.cat([x_i, x_j], dim=-1) * self.att).sum(dim=-1)
-    #         alpha = F.leaky_relu(alpha, self.negative_slope)
-
-    #     elif self.att_type == "gat_sym":
-    #         wl = self.att[:, :, :self.out_channels]  # weight left
-    #         wr = self.att[:, :, self.out_channels:]  # weight right
-    #         alpha = (x_i * wl).sum(dim=-1) + (x_j * wr).sum(dim=-1)
-    #         alpha_2 = (x_j * wl).sum(dim=-1) + (x_i * wr).sum(dim=-1)
-    #         alpha = F.leaky_relu(alpha, self.negative_slope) + F.leaky_relu(alpha_2, self.negative_slope)
-
-    #     elif self.att_type == "linear":
-    #         wl = self.att[:, :, :self.out_channels]  # weight left
-    #         wr = self.att[:, :, self.out_channels:]  # weight right
-    #         al = x_j * wl
-    #         ar = x_j * wr
-    #         alpha = al.sum(dim=-1) + ar.sum(dim=-1)
-    #         alpha = torch.tanh(alpha)
-    #     elif self.att_type == "cos":
-    #         wl = self.att[:, :, :self.out_channels]  # weight left
-    #         wr = self.att[:, :, self.out_channels:]  # weight right
-    #         alpha = x_i * wl * x_j * wr
-    #         alpha = alpha.sum(dim=-1)
-
-    #     elif self.att_type == "generalized_linear":
-    #         wl = self.att[:, :, :self.out_channels]  # weight left
-    #         wr = self.att[:, :, self.out_channels:]  # weight right
-    #         al = x_i * wl
-    #         ar = x_j * wr
-    #         alpha = al + ar
-    #         alpha = torch.tanh(alpha)
-    #         alpha = self.general_att_layer(alpha)
-    #     else:
-    #         raise Exception("Wrong attention type:", self.att_type)
-    #     return alpha
-
-    # def update(self, aggr_out):
-    #     if self.concat is True:
-    #         aggr_out = aggr_out.view(-1, self.heads * self.out_channels)
-    #     else:
-    #         aggr_out = aggr_out.mean(dim=1)
-
-    #     if self.bias is not None:
-    #         aggr_out = aggr_out + self.bias
-    #     return aggr_out
-
-    # def __repr__(self):
-    #     return '{}({}, {}, heads={})'.format(self.__class__.__name__,
-    #                                          self.in_channels,
-    #                                          self.out_channels, self.heads)
-
-    # def get_param_dict(self):
-    #     params = {}
-    #     key = f"{self.att_type}_{self.agg_type}_{self.in_channels}_{self.out_channels}_{self.heads}"
-    #     weight_key = key + "_weight"
-    #     att_key = key + "_att"
-    #     agg_key = key + "_agg"
-    #     bais_key = key + "_bais"
-
-    #     params[weight_key] = self.weight
-    #     params[att_key] = self.att
-    #     params[bais_key] = self.bias
-    #     if hasattr(self, "pool_layer"):
-    #         params[agg_key] = self.pool_layer.state_dict()
-
-    #     return params
-
-    # def load_param(self, params):
-    #     key = f"{self.att_type}_{self.agg_type}_{self.in_channels}_{self.out_channels}_{self.heads}"
-    #     weight_key = key + "_weight"
-    #     att_key = key + "_att"
-    #     agg_key = key + "_agg"
-    #     bais_key = key + "_bais"
-
-    #     if weight_key in params:
-    #         self.weight = params[weight_key]
-
-    #     if att_key in params:
-    #         self.att = params[att_key]
-
-    #     if bais_key in params:
-    #         self.bias = params[bais_key]
-
-    #     if agg_key in params and hasattr(self, "pool_layer"):
-    #         self.pool_layer.load_state_dict(params[agg_key])
+# out_upd = geo(x,edge_index)
+# print(out_upd)
