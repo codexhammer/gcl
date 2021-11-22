@@ -4,13 +4,13 @@ import torch
 class MacroSearchSpace():
     def __init__(self):
             self.search_space_gnn = {
-                'hidden_units': [4, 8, 16, 32, 64],
+                'hidden_units': [8,16,32,64,128,256]
                           }
 
                           
             self.search_space_mlp = {
-                'add_nodes' : [4, 8, 16, 32, 64],
-                'remove_nodes' : [4, 8, 16, 32, 64],
+                'add_nodes' : [10,15,20,25,30],
+                'del_nodes' : [2, 4, 6, 8, 10]
             }
 
     def get_search_space(self):
