@@ -6,8 +6,7 @@ import scipy.signal
 import torch
 
 import utils.tensor_utils as utils
-# from gnn_model_manager import CitationGNNManager
-from graphnas_variants.macro_graphnas.pyg.pyg_gnn_model_manager import GeoCitationManager
+from pyg_gnn_model_manager import GeoCitationManager
 
 logger = utils.get_logger()
 
@@ -88,36 +87,8 @@ class Trainer(object):
                                                 action_list_mlp = self.action_list_mlp,                                                   
                                                 cuda=self.args.cuda)
 
-            # if self.args.dataset in ["cora", "citeseer", "pubmed"]:
-            #     # implements based on dgl
-            #     self.submodel_manager = CitationGNNManager(self.args)
             if self.args.dataset in ["Cora", "Citeseer", "Pubmed"]:
-                # implements based on pyg
                 self.submodel_manager = GeoCitationManager(self.args)
-
-
-        # if self.args.search_mode == "micro":
-        #     self.args.format = "micro"
-        #     self.args.predict_hyper = True
-        #     if not hasattr(self.args, "num_of_cell"):
-        #         self.args.num_of_cell = 2
-        #     from graphnas_variants.micro_graphnas.micro_search_space import IncrementSearchSpace
-        #     search_space_cls = IncrementSearchSpace()
-        #     search_space = search_space_cls.get_search_space()
-        #     from graphnas_controller import SimpleNASController
-        #     from graphnas_variants.micro_graphnas.micro_model_manager import MicroCitationManager
-        #     self.submodel_manager = MicroCitationManager(self.args)
-        #     self.search_space = search_space
-        #     action_list = search_space_cls.generate_action_list(cell=self.args.num_of_cell)
-        #     if hasattr(self.args, "predict_hyper") and self.args.predict_hyper:
-        #         self.action_list = action_list + ["learning_rate", "dropout", "weight_decay", "hidden_unit"]
-        #     else:
-        #         self.action_list = action_list
-        #     self.controller = SimpleNASController(self.args, action_list=self.action_list,
-        #                                           search_space=self.search_space,
-        #                                           cuda=self.args.cuda)
-        #     if self.cuda:
-        #         self.controller.cuda()
 
         if self.cuda:
             self.controller.cuda()
