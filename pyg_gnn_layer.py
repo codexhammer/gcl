@@ -73,7 +73,7 @@ class GraphLayer(nn.Module):
                     if self.bias_gnn:
                         self.gnn[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
                 else:
-                    raise Exception("Not implemented error")                 #  Implemenation needed  
+                    raise Exception("Not implemented error")                 #  Implementation needed  
                         
     def weight_update_mlp(self, wgt_add):
         assert len(self.linear)-1 == len(wgt_add), "Match number of Linear layers and node additions"
