@@ -1,9 +1,7 @@
 import torch
 import torch.nn.functional as F
-
-# from gnn import GraphNet as BaseNet
 from search_space import act_map
-from pyg_gnn_layer import GeoLayer
+from pyg_gnn_layer import GraphLayer
 import torch_geometric.nn as nn
 
 
@@ -15,7 +13,7 @@ class GraphNet(torch.nn.Module):
         :param actions:
         :param multi_label:
         '''
-        super(GraphNet, self).__init__()
+        super().__init__()
         # args
 
         self.multi_label = multi_label
@@ -88,7 +86,7 @@ class GraphNet(torch.nn.Module):
             if self.batch_normal:
                 self.bns.append(torch.nn.BatchNorm1d(in_channels, momentum=0.5))
             self.layers.append(
-                GeoLayer(in_channels, out_channels, self.head_num, concat, dropout=self.dropout ))
+                GraphLayer(in_channels, out_channels, self.head_num, concat, dropout=self.dropout ))
             self.acts.append(act_map())
             if self.residual:
                 if concat:
