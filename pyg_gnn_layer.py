@@ -32,7 +32,7 @@ class GraphLayer(nn.Module):
                 self.gnn.append(SGConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias = bias_gnn))
             
             else:
-                raise Exception("Check gnn type!")
+                raise Exception("Check GNN type!")
 
         
         self.channels_mlp = channels_mlp        
