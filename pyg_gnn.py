@@ -7,8 +7,9 @@ import torch_geometric.nn as nn
 
 class GraphNet(torch.nn.Module):
 
-    def __init__(self, actions_mlp, num_feat, num_label, drop_out=0.6, multi_label=False, batch_normal=True, state_num_gcn=1,state_num_mlp=2,
-                 residual=False):
+    def __init__(self, channels_gnn, channels_mlp, actions_gnn, actions_mlp, num_feat, 
+                num_class, drop_out=0.6, multi_label=False, batch_normal=True, 
+                state_num_gnn=1,state_num_mlp=2, residual=False):
         '''
         :param actions:
         :param multi_label:
@@ -16,83 +17,71 @@ class GraphNet(torch.nn.Module):
         super().__init__()
         # args
 
+        self.channels_gnn = channels_gnn # Enter the hiiden layer values only
+        self.channels_mlp = channels_mlp # Enter the hidden node values only
         self.multi_label = multi_label
         self.num_feat = num_feat
-        self.num_label = num_label
+        self.num_class = num_class
         self.dropout = drop_out
         self.residual = residual
         self.batch_normal = batch_normal
         
         # check structure of GNN
-        self.layer_nums_mlp = self.evalate_actions(actions_mlp,state_num_mlp)
+        (self.layer_nums_gnn ,self.layer_nums_mlp) = self.evaluate_actions(actions_gnn, actions_mlp, state_num_gnn, state_num_mlp)
         self.head_num = 1
 
         # layer module
-        self.build_model(actions, batch_normal, drop_out, num_feat, num_label, state_num)
+        self.build_model(actions, batch_normal, drop_out, num_feat, num_class, state_num)
 
-    def build_model(self, actions, batch_normal, drop_out, num_feat, num_label, state_num):
+    def build_model(self, actions, batch_normal, drop_out, num_feat, num_class, state_num):
         if self.residual:
             self.fcs = torch.nn.ModuleList()
         if self.batch_normal:
             self.bns = torch.nn.ModuleList()
         self.layers = torch.nn.ModuleList()
         self.acts = []
-        self.build_hidden_layers(actions, batch_normal, drop_out, self.layer_nums_mlp, num_feat, num_label, state_num)
+        self.build_hidden_layers(actions, batch_normal, drop_out, self.layer_nums_mlp, num_feat, num_class, state_num)
 
-    def evalate_actions(self, actions_mlp,state_num_mlp):
+    def evaluate_actions(self, actions_gnn, actions_mlp, state_num_gnn, state_num_mlp):
+        state_length_gnn = len(actions_gnn)
+        if state_length_gnn % state_num_gnn!=0:
+            raise RuntimeError("Wrong GNN Input: unmatchable input")
+        layer_nums_gnn = state_length_gnn // state_num_gnn
+
         state_length_mlp = len(actions_mlp)
         if state_length_mlp % state_num_mlp != 0:
-            raise RuntimeError("Wrong Input: unmatchable input")
+            raise RuntimeError("Wrong MLP Input: unmatchable input")
         layer_nums_mlp = state_length_mlp // state_num_mlp
-        if self.evaluate_structure(actions_mlp, layer_nums_mlp, state_num=state_num_mlp):
-            pass
-        else:
-            raise RuntimeError("wrong structure")
-        return layer_nums_mlp
 
-    def evaluate_structure(self, actions_mlp, layer_nums_mlp, state_num=6):
-        # Check for output gnn == input mlp
-        pass
-
-
-        # hidden_units_list = []
-        # out_channels_list = []
-        # for i in range(layer_nums_mlp):
-        #     out_channels = actions[i * state_num + 0]
-        #     hidden_units_list.append(self.head_num * out_channels)
-        #     out_channels_list.append(out_channels)
-
-        # return out_channels_list[-1] == self.num_label
+        return (layer_nums_gnn, layer_nums_mlp)
         
-    def build_hidden_layers(self, actions, batch_normal, drop_out, layer_nums_mlp, num_feat, num_label, state_num=6):
+    def build_hidden_layers(self, actions, batch_normal, drop_out, layer_nums_mlp, num_feat, num_class, state_num=6):
 
         # build hidden layer
-        for i in range(layer_nums_mlp):
+        self.channels_gnn.insert(0,self.num_feat)
 
-            if i == 0:
-                in_channels = num_feat
-            else:
-                in_channels = out_channels * self.head_num
+        # for i in range(layer_nums_mlp):
+
+        #     if i == 0:
+        #         in_channels = self.num_feat
+        #     else:
+        #         in_channels = out_channels * self.head_num
 
             # extract layer information
             # attention_type = actions[i * state_num + 0]
             # aggregator_type = actions[i * state_num + 1]
             # act = actions[i * state_num + 2]
             # head_num = actions[i * state_num + 3]
-            out_channels = actions[i * state_num + 0]
-            concat = True
-            if i == layer_nums_mlp - 1:
-                concat = False
-            if self.batch_normal:
-                self.bns.append(torch.nn.BatchNorm1d(in_channels, momentum=0.5))
-            self.layers.append(
-                GraphLayer(in_channels, out_channels, self.head_num, concat, dropout=self.dropout ))
-            self.acts.append(act_map())
-            if self.residual:
-                if concat:
-                    self.fcs.append(torch.nn.Linear(in_channels, out_channels * self.head_num))
-                else:
-                    self.fcs.append(torch.nn.Linear(in_channels, out_channels))
+            # out_channels = actions[i * state_num + 0]
+            # if i == layer_nums_mlp - 1:
+            #     concat = False
+            # if self.batch_normal:
+            #     self.bns.append(torch.nn.BatchNorm1d(in_channels, momentum=0.5))
+            # self.layers.append(
+            #     GraphLayer(in_channels, out_channels, self.head_num, concat, dropout=self.dropout ))
+            # self.acts.append(act_map())
+            # if self.residual:
+            #     self.fcs.append(torch.nn.Linear(in_channels, out_channels))
 
     def forward(self, x, edge_index_all):
         output = x
