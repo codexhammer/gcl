@@ -4,7 +4,7 @@ import torch
 class MacroSearchSpace():
     def __init__(self):
             self.search_space_gnn = {
-                'hidden_units': [8,16,32,64,128,256]
+                'hidden_units': [8,16,32,64,128]
                           }
 
                           
