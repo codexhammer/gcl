@@ -34,7 +34,7 @@ def load_data(dataset="Cora", supervised=False, full_data=True):
             data.val_mask[data.num_nodes - 1000: data.num_nodes - 500] = 1
             data.test_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
             data.test_mask[data.num_nodes - 500:] = 1
-    return data
+    return dataset, data
 
 def evaluate(output, labels, mask):
     _, indices = torch.max(output, dim=1)
@@ -65,21 +65,22 @@ def run_model():
     channels_gnn = [32, 48]
     channels_mlp = [30, 40]
     action_gnn, action_mlp = sample()
-    epochs = 100
-    model = GraphLayer(channels_gnn,channels_mlp).to(device)
-    data = load_data()
-    channels_gnn.insert(0,data.num_node_features)
+    epochs = 200
+    dataset, data = load_data()
     data = data.to(device)
+    channels_gnn.insert(0,dataset.num_node_features)
+
+    model = GraphLayer(channels_gnn,channels_mlp, num_class=dataset.num_classes).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    loss_fn = nn.BCELoss()
+    loss_fn = nn.NLLLoss()
     dur = []
     begin_time = time.time()
     best_performance = 0
     min_val_loss = float("inf")
     model_val_acc = 0
     print("Number of train datas:", data.train_mask.sum())
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, epochs+1):
         model.train()
         optimizer.zero_grad()
         t0 = time.time()
@@ -114,8 +115,8 @@ def run_model():
                     epoch, loss.item(), np.mean(dur), train_acc, val_acc, test_acc))
 
             end_time = time.time()
-            print("Each Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
+            print("Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
     print(f"val_score:{model_val_acc},test_score:{best_performance}")
-    model.weight_update_gnn(action_gnn, action_mlp)
+    model.weight_update(action_gnn, action_mlp)
 
 run_model()
