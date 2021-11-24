@@ -88,7 +88,11 @@ class GraphLayer(nn.Module):
             with torch.no_grad():
                 self.linear[i].weight[0:model_param["weight"].shape[0] , 0:model_param["weight"].shape[1]] = model_param["weight"]
                 if self.bias_mlp:
-                    self.linear[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]                
+                    self.linear[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
+
+    def weight_update(self, wgt_gnn, wgt_mlp):
+        self.weight_update_gnn(wgt_gnn)
+        self.weight_update_mlp(wgt_mlp)             
   
     def forward(self,x,edge_index):
         for i in range(len(self.gnn)):
@@ -117,12 +121,11 @@ class GraphLayer(nn.Module):
 
 # print("--"*120,"\nUpdated parameters")
 # wgt_add_gnn = [1,2]
-# geo.weight_update_gnn(wgt_add_gnn)
 # wgt_add_mlp = [7,3]
-# geo.weight_update_mlp(wgt_add_mlp)
+# geo.weight_update(wgt_add_gnn,wgt_add_mlp)
 
-# # for n,p in geo.named_parameters():
-# #     print(n,p,end="\n")
+# for n,p in geo.named_parameters():
+#     print(n,p,end="\n")
 
 # out_upd = geo(x,edge_index)
 # print(out_upd)
@@ -130,9 +133,8 @@ class GraphLayer(nn.Module):
 # print("*"*120)
 # print("Update again!")
 # wgt_add_gnn = [4,2]
-# geo.weight_update_gnn(wgt_add_gnn)
 # wgt_add_mlp = [7,5]
-# geo.weight_update_mlp(wgt_add_mlp)
+# geo.weight_update(wgt_add_gnn,wgt_add_mlp)
 
 # # for n,p in geo.named_parameters():
 # #     print(n,p,end="\n")
