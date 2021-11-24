@@ -8,9 +8,9 @@ class GraphLayer(nn.Module):
     def __init__(self,
                  channels_gnn,
                  channels_mlp,
+                 num_class,
                  heads=2,
                  att_type="gcn",
-                 num_class=5,
                  bias_gnn=True,
                  bias_mlp=True):
         super().__init__()
