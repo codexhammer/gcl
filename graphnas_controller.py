@@ -11,7 +11,7 @@ class SimpleNASController(torch.nn.Module):
         for single_action in actions:
             structure = []
             for action, action_name in zip(single_action, self.action_list):
-                predicted_actions = self.search_space_gnn[action_name][action]
+                predicted_actions = self.search_space[action_name][action]
                 structure.append(predicted_actions)
             structure_list.append(structure)
         return structure_list
@@ -36,6 +36,9 @@ class SimpleNASController(torch.nn.Module):
         self.controller_hid = controller_hid
         self.is_cuda = cuda
 
+        self.search_space = dict(search_space_gnn, **search_space_mlp)
+        self.action_list = action_list_gnn + action_list_mlp
+
         # set hyperparameters
         if args and args.softmax_temperature:
             self.softmax_temperature = args.softmax_temperature
@@ -48,8 +51,8 @@ class SimpleNASController(torch.nn.Module):
 
         # build encoder
         self.num_tokens = []
-        for key in self.search_space_gnn:
-            self.num_tokens.append(len(self.search_space_gnn[key]))
+        for key in self.search_space:
+            self.num_tokens.append(len(self.search_space[key]))
 
         num_total_tokens = sum(self.num_tokens)  # count action type
         self.encoder = torch.nn.Embedding(num_total_tokens, controller_hid)
@@ -59,8 +62,8 @@ class SimpleNASController(torch.nn.Module):
 
         # build decoder
         self._decoders = torch.nn.ModuleDict()
-        for key in self.search_space_gnn:
-            size = len(self.search_space_gnn[key])
+        for key in self.search_space:
+            size = len(self.search_space[key])
             decoder = torch.nn.Linear(controller_hid, size)
             self._decoders[key] = decoder
 
@@ -122,7 +125,7 @@ class SimpleNASController(torch.nn.Module):
         return logits, (hx, cx)
 
     def action_index(self, action_name):
-        key_names = self.search_space_gnn.keys()
+        key_names = self.search_space.keys()
         for i, key in enumerate(key_names):
             if action_name == key:
                 return i
