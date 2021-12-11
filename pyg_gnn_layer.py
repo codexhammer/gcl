@@ -9,7 +9,7 @@ class GraphLayer(nn.Module):
                  channels_gnn,
                  channels_mlp,
                  num_class,
-                 heads=2,
+                 heads=1,
                  att_type="gcn",
                  bias_gnn=True,
                  bias_mlp=True):
@@ -77,6 +77,8 @@ class GraphLayer(nn.Module):
                         
     def weight_update_mlp(self, wgt_add):
         assert len(self.linear)-1 == len(wgt_add), "Match number of Linear layers and node additions"
+        assert self.channels_mlp[-1] == self.num_class, "MLP output not match class number"
+
         self.channels_mlp[0] = self.channels_gnn[-1] #Change here!
         
         for i in range(1,len(self.channels_mlp)-1):
@@ -111,10 +113,10 @@ class GraphLayer(nn.Module):
 
 # x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
 
-# geo = GraphLayer(channels_gnn = [x.shape[1],3,5], channels_mlp=[8,3])
+# geo = GraphLayer(channels_gnn = [x.shape[1],3,5], channels_mlp=[8,3], num_class=5)
 
-# # for n,p in geo.named_parameters():
-# #     print(n,p,end="\n")
+# for n,p in geo.named_parameters():
+#     print(n,p,end="\n")
 
 # out_ini = geo(x,edge_index)
 # print("Output",out_ini)
@@ -136,8 +138,8 @@ class GraphLayer(nn.Module):
 # wgt_add_mlp = [7,5]
 # geo.weight_update(wgt_add_gnn,wgt_add_mlp)
 
-# # for n,p in geo.named_parameters():
-# #     print(n,p,end="\n")
+# for n,p in geo.named_parameters():
+#     print(n,p,end="\n")
 # print("-"*100)
 # out_upd = geo(x,edge_index)
 # print(out_upd)
