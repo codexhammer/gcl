@@ -3,16 +3,18 @@ import time
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.transforms as T
 from torch_geometric.datasets import Planetoid, Coauthor, Amazon
 
-# from gnn_model_manager import CitationGNNManager, evaluate
-from pyg_gnn import GraphNet
+from search_space import MacroSearchSpace
+import copy
 from utils.model_utils import EarlyStop, TopAverage, process_action
+from pyg_gnn_layer import GraphLayer
 
 
-def load_data(dataset="Cora", supervised=False, full_data=True):
+def load_data(dataset="Cora", supervised=False, full_data=True, data_no=0):
     '''
     support semi-supervised and supervised
     :param dataset:
@@ -26,7 +28,7 @@ def load_data(dataset="Cora", supervised=False, full_data=True):
         dataset = Amazon(path, dataset, T.NormalizeFeatures())
     elif dataset in ["Cora", "Citeseer", "Pubmed"]:
         dataset = Planetoid(path, dataset, transform=T.NormalizeFeatures())
-    data = dataset[0]
+    data = dataset[data_no]
     if supervised:
         if full_data:
             data.train_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
@@ -49,57 +51,79 @@ def evaluate(output, labels, mask):
     correct = torch.sum(indices[mask] == labels[mask])
     return correct.item() * 1.0 / mask.sum().item()
 
-class GeoCitationManager(object):
-    def __init__(self, args):
-        # super(GeoCitationManager, self).__init__(args)
+class GeoCitationManager():
+    def __init__(self, args, att_type="gcn",
+                 batch_normal=True, residual=False):
+        
+        self.data_no = 0
         if hasattr(args, "supervised"):
-            self.data = load_data(args.dataset, args.supervised)
+            self.data = load_data(self.data_no, args.dataset, args.supervised)
         else:
-            self.data = load_data(args.dataset)
+            self.data = load_data(self.data_no, args.dataset)
 
-        self.args = args
-        self.args.in_feats = self.in_feats = self.data.num_features
-        self.args.num_class = self.n_classes = self.data.y.max().item() + 1
+        self.num_feat =  self.data.num_features
+        self.num_class = self.data.y.max().item() + 1
         self.early_stop_manager = EarlyStop(10)
         self.reward_manager = TopAverage(10)
-        self.drop_out = args.in_drop
-        self.multi_label = args.multi_label
         self.lr = args.lr
         self.weight_decay = args.weight_decay
-        self.retrain_epochs = args.retrain_epochs
-        self.loss_fn = torch.nn.BCELoss()
         self.epochs = args.epochs
-        self.train_graph_index = 0
-        self.train_set_length = 10
+        self.att_type = att_type
 
-        self.param_file = args.param_file
-        self.shared_params = None
-
-        self.loss_fn = torch.nn.functional.nll_loss
+        self.loss_fn = nn.CrossEntropyLoss()
         device = torch.device('cuda' if args.cuda else 'cpu')
         self.data.to(device)
-    
-    
-    def load_param(self):
-        # don't share param
-        pass
-    def save_param(self, model, update_all=False):
-        pass
+
+        # Copied from pyg_gnn
+        self.channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
+        self.channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
+        self.dropout = args.in_drop
+        self.residual = residual
+        self.batch_normal = batch_normal
+        self.heads = 1
+        self.max_data = 6
+
+
+        self.channels_gnn.insert(0,self.num_feat)
+
+        self.model = self.build_gnn(self.channels_gnn, self.channels_mlp, self.num_class, self.heads, self.att_type)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+
+        if args.cuda:
+            self.model.cuda()
+
+        self.args = args
+
+
+    def evaluate_actions(self, actions_gnn, actions_mlp, state_num_gnn=1, state_num_mlp=2):
+        state_length_gnn = len(actions_gnn)
+        if state_length_gnn % state_num_gnn!=0:
+            raise RuntimeError("Wrong GNN Input: unmatchable input")
+
+        state_length_mlp = len(actions_mlp)
+        if state_length_mlp % state_num_mlp != 0:
+            raise RuntimeError("Wrong MLP Input: unmatchable input")
+
+    def build_hidden_layers(self, actions):
+        if actions:
+            search_space_cls = MacroSearchSpace()
+            action_list_gnn, _ = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
+            actions_gnn = actions[:len(action_list_gnn)]
+            actions_mlp = actions[len(action_list_gnn):]
+            self.actions_gnn = actions_gnn
+            self.actions_mlp = list(map(lambda x,y:x-y,actions_mlp[::2],actions_mlp[1::2]))
+            self.evaluate_actions(actions_gnn, actions_mlp, state_num_gnn=1, state_num_mlp=2)
+            self.model.weight_update(self.actions_gnn,self.actions_mlp)
+            print('**')
+        else:
+            return
 
     def evaluate(self, actions=None, format="two"):
-        actions = process_action(actions, format, self.args)
         print("train action:", actions)
 
         # create model
-        model = self.build_gnn(actions)
-
-        if self.args.cuda:
-            model.cuda()
-
-        # use optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
         try:
-            model, val_acc, test_acc = self.run_model(model, optimizer, self.loss_fn, self.data, self.epochs,
+            self.model, val_acc, test_acc = self.run_model(self.model, self.optimizer, self.loss_fn, self.data, self.epochs,
                                                       cuda=self.args.cuda, return_best=True,
                                                       half_stop_score=max(self.reward_manager.get_top_average() * 0.7,
                                                                           0.4))
@@ -113,19 +137,16 @@ class GeoCitationManager(object):
         return val_acc, test_acc
     
     def train(self, actions=None, format="two"):
+        if self.data_no >= self.max_data:
+            return None 
+
+        self.build_hidden_layers(actions)
         origin_action = actions
-        actions = process_action(actions, format, self.args)
         print("train action:", actions)
 
-        # create model
-        model = self.build_gnn(actions)
-
         try:
-            if self.args.cuda:
-                model.cuda()
             # use optimizer
-            optimizer = torch.optim.Adam(model.parameters(), lr=self.args.lr, weight_decay=self.args.weight_decay)
-            model, val_acc = self.run_model(model, optimizer, self.loss_fn, self.data, self.epochs, cuda=self.args.cuda,
+            self.model, val_acc = self.run_model(self.model, self.optimizer, self.loss_fn, self.data, self.epochs, cuda=self.args.cuda,
                                             half_stop_score=max(self.reward_manager.get_top_average() * 0.7, 0.4))
         except RuntimeError as e:
             if "cuda" in str(e) or "CUDA" in str(e):
@@ -134,14 +155,14 @@ class GeoCitationManager(object):
             else:
                 raise e
         reward = self.reward_manager.get_reward(val_acc)
-        self.save_param(model, update_all=(reward > 0))
+        # self.save_param(self.model, update_all=(reward > 0))
 
         self.record_action_info(origin_action, reward, val_acc)
 
         return reward, val_acc
 
     def record_action_info(self, origin_action, reward, val_acc):
-        with open(self.args.dataset + "_" + self.args.search_mode + self.args.submanager_log_file, "a") as file:
+        with open(self.args.dataset + "_" + self.args.submanager_log_file, "a") as file:
             # with open(f'{self.args.dataset}_{self.args.search_mode}_{self.args.format}_manager_result.txt', "a") as file:
             file.write(str(origin_action))
 
@@ -152,9 +173,8 @@ class GeoCitationManager(object):
             file.write(str(val_acc))
             file.write("\n")
     
-    def build_gnn(self, actions):
-        model = GraphNet(actions, self.in_feats, self.n_classes, drop_out=self.args.in_drop, multi_label=False,
-                         batch_normal=False, residual=False)
+    def build_gnn(self, channels_gnn, channels_mlp, num_class, heads, att_type):
+        model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, att_type)
         return model
 
     def retrain(self, actions, format="two"):
@@ -165,13 +185,12 @@ class GeoCitationManager(object):
 
     @staticmethod
     def run_model(model, optimizer, loss_fn, data, epochs, early_stop=5, tmp_model_file="geo_citation.pkl",
-                  half_stop_score=0, return_best=False, cuda=True, need_early_stop=False, show_info=False):
+                  half_stop_score=0, return_best=False, cuda=True, need_early_stop=False, show_info=True):
 
         dur = []
         begin_time = time.time()
         best_performance = 0
         min_val_loss = float("inf")
-        min_train_loss = float("inf")
         model_val_acc = 0
         print("Number of train datas:", data.train_mask.sum())
         for epoch in range(1, epochs + 1):
@@ -184,23 +203,23 @@ class GeoCitationManager(object):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            train_loss = loss.item()
+            # train_loss = loss.item()
 
             # evaluate
-            model.eval()
-            logits = model(data.x, data.edge_index)
-            logits = F.log_softmax(logits, 1)
-            train_acc = evaluate(logits, data.y, data.train_mask)
-            dur.append(time.time() - t0)
+            if epoch%50==0:
+                model.eval()
+                logits = model(data.x, data.edge_index)
+                logits = F.log_softmax(logits, 1)
+                train_acc = evaluate(logits, data.y, data.train_mask)
+                dur.append(time.time() - t0)
 
-            val_acc = evaluate(logits, data.y, data.val_mask)
-            test_acc = evaluate(logits, data.y, data.test_mask)
+                val_acc = evaluate(logits, data.y, data.val_mask)
+                test_acc = evaluate(logits, data.y, data.test_mask)
 
             loss = loss_fn(logits[data.val_mask], data.y[data.val_mask])
             val_loss = loss.item()
             if val_loss < min_val_loss:  # and train_loss < min_train_loss
                 min_val_loss = val_loss
-                min_train_loss = train_loss
                 model_val_acc = val_acc
                 if test_acc > best_performance:
                     best_performance = test_acc
