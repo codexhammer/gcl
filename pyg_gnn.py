@@ -17,7 +17,7 @@ class GraphNet(torch.nn.Module):
         super().__init__()
         # args
 
-        self.channels_gnn = channels_gnn # Enter the hiiden layer values only
+        self.channels_gnn = channels_gnn # Enter the hidden layer values only
         self.channels_mlp = channels_mlp # Enter the hidden node values only
         self.multi_label = multi_label
         self.num_feat = num_feat
@@ -53,6 +53,8 @@ class GraphNet(torch.nn.Module):
             raise RuntimeError("Wrong MLP Input: unmatchable input")
         layer_nums_mlp = state_length_mlp // state_num_mlp
 
+        assert args.num_gnn == len(args.channels_gnn), "No. of gnn channels must match channel length"
+        assert args.num_mlp == len(args.channels_mlp), "No. of mlp channels must match channel length" # Check here
         return (layer_nums_gnn, layer_nums_mlp)
         
     def build_hidden_layers(self, actions, batch_normal, drop_out, layer_nums_mlp, num_feat, num_class, state_num=6):
@@ -108,50 +110,50 @@ class GraphNet(torch.nn.Module):
             result_lines += str(each)
         return result_lines
 
-    @staticmethod
-    def merge_param(old_param, new_param, update_all):
-        for key in new_param:
-            if update_all or key not in old_param:
-                old_param[key] = new_param[key]
-        return old_param
+    # @staticmethod
+    # def merge_param(old_param, new_param, update_all):
+    #     for key in new_param:
+    #         if update_all or key not in old_param:
+    #             old_param[key] = new_param[key]
+    #     return old_param
 
-    def get_param_dict(self, old_param=None, update_all=True):
-        if old_param is None:
-            result = {}
-        else:
-            result = old_param
-        for i in range(self.layer_nums):
-            key = "layer_%d" % i
-            new_param = self.layers[i].get_param_dict()
-            if key in result:
-                new_param = self.merge_param(result[key], new_param, update_all)
-                result[key] = new_param
-            else:
-                result[key] = new_param
-        if self.residual:
-            for i, fc in enumerate(self.fcs):
-                key = f"layer_{i}_fc_{fc.weight.size(0)}_{fc.weight.size(1)}"
-                result[key] = self.fcs[i]
-        if self.batch_normal:
-            for i, bn in enumerate(self.bns):
-                key = f"layer_{i}_fc_{bn.weight.size(0)}"
-                result[key] = self.bns[i]
-        return result
+    # def get_param_dict(self, old_param=None, update_all=True):
+    #     if old_param is None:
+    #         result = {}
+    #     else:
+    #         result = old_param
+    #     for i in range(self.layer_nums):
+    #         key = "layer_%d" % i
+    #         new_param = self.layers[i].get_param_dict()
+    #         if key in result:
+    #             new_param = self.merge_param(result[key], new_param, update_all)
+    #             result[key] = new_param
+    #         else:
+    #             result[key] = new_param
+    #     if self.residual:
+    #         for i, fc in enumerate(self.fcs):
+    #             key = f"layer_{i}_fc_{fc.weight.size(0)}_{fc.weight.size(1)}"
+    #             result[key] = self.fcs[i]
+    #     if self.batch_normal:
+    #         for i, bn in enumerate(self.bns):
+    #             key = f"layer_{i}_fc_{bn.weight.size(0)}"
+    #             result[key] = self.bns[i]
+    #     return result
 
-    def load_param(self, param):
-        if param is None:
-            return
+    # def load_param(self, param):
+    #     if param is None:
+    #         return
 
-        for i in range(self.layer_nums):
-            self.layers[i].load_param(param["layer_%d" % i])
+    #     for i in range(self.layer_nums):
+    #         self.layers[i].load_param(param["layer_%d" % i])
 
-        if self.residual:
-            for i, fc in enumerate(self.fcs):
-                key = f"layer_{i}_fc_{fc.weight.size(0)}_{fc.weight.size(1)}"
-                if key in param:
-                    self.fcs[i] = param[key]
-        if self.batch_normal:
-            for i, bn in enumerate(self.bns):
-                key = f"layer_{i}_fc_{bn.weight.size(0)}"
-                if key in param:
-                    self.bns[i] = param[key]
+    #     if self.residual:
+    #         for i, fc in enumerate(self.fcs):
+    #             key = f"layer_{i}_fc_{fc.weight.size(0)}_{fc.weight.size(1)}"
+    #             if key in param:
+    #                 self.fcs[i] = param[key]
+    #     if self.batch_normal:
+    #         for i, bn in enumerate(self.bns):
+    #             key = f"layer_{i}_fc_{bn.weight.size(0)}"
+    #             if key in param:
+    #                 self.bns[i] = param[key]
