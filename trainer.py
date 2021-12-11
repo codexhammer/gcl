@@ -72,38 +72,38 @@ class Trainer(object):
         self.args.share_param = False
         self.with_retrain = True
         self.args.shared_initial_step = 0
-        if self.args.search_mode == "macro":
+        # if self.args.search_mode == "macro":
             # generate model description in macro way (generate entire network description)
-            from search_space import MacroSearchSpace
-            search_space_cls = MacroSearchSpace()
-            self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
-            self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(self.args.layers_of_child_model,self.args.hidden_layers_of_mlp)
-            # build RNN controller
-            from graphnas_controller import SimpleNASController
-            self.controller = SimpleNASController(self.args, 
-                                                search_space_gnn = self.search_space_gnn,
-                                                search_space_mlp = self.search_space_mlp,
-                                                action_list_gnn = self.action_list_gnn,
-                                                action_list_mlp = self.action_list_mlp,                                                   
-                                                cuda=self.args.cuda)
+        from search_space import MacroSearchSpace
+        search_space_cls = MacroSearchSpace()
+        self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
+        self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
+        # build RNN controller
+        from graphnas_controller import SimpleNASController
+        self.controller = SimpleNASController(self.args, 
+                                            search_space_gnn = self.search_space_gnn,
+                                            search_space_mlp = self.search_space_mlp,
+                                            action_list_gnn = self.action_list_gnn,
+                                            action_list_mlp = self.action_list_mlp,                                                   
+                                            cuda=self.args.cuda)
 
-            if self.args.dataset in ["Cora", "Citeseer", "Pubmed"]:
-                self.submodel_manager = GeoCitationManager(self.args)
+        if self.args.dataset in ["Cora", "Citeseer", "Pubmed"]:
+            self.submodel_manager = GeoCitationManager(self.args) ### Changed
 
         if self.cuda:
             self.controller.cuda()
 
-    def form_gnn_info(self, gnn):
-        if self.args.search_mode == "micro":
-            actual_action = {}
-            if self.args.predict_hyper:
-                actual_action["action"] = gnn[:-4]
-                actual_action["hyper_param"] = gnn[-4:]
-            else:
-                actual_action["action"] = gnn
-                actual_action["hyper_param"] = [0.005, 0.8, 5e-5, 128]
-            return actual_action
-        return gnn
+    # def form_gnn_info(self, gnn):
+    #     if self.args.search_mode == "micro":
+    #         actual_action = {}
+    #         if self.args.predict_hyper:
+    #             actual_action["action"] = gnn[:-4]
+    #             actual_action["hyper_param"] = gnn[-4:]
+    #         else:
+    #             actual_action["action"] = gnn
+    #             actual_action["hyper_param"] = [0.005, 0.8, 5e-5, 128]
+    #         return actual_action
+    #     return gnn
 
     def train(self):
         """
@@ -142,7 +142,7 @@ class Trainer(object):
         gnn_list = gnn_list if gnn_list else self.controller.sample(max_step)
 
         for gnn in gnn_list:
-            gnn = self.form_gnn_info(gnn)
+            # gnn = self.form_gnn_info(gnn)
             try:
                 _, val_score = self.submodel_manager.train(gnn, format=self.args.format)
                 logger.info(f"{gnn}, val_score:{val_score}")
@@ -169,7 +169,7 @@ class Trainer(object):
 
         reward_list = []
         for gnn in gnn_list:
-            gnn = self.form_gnn_info(gnn)
+            # gnn = self.form_gnn_info(gnn)
             reward = self.submodel_manager.test_with_param(gnn, format=self.args.format,
                                                            with_retrain=self.with_retrain)
 
@@ -276,7 +276,7 @@ class Trainer(object):
         logger.info(f'eval | {gnn} | reward: {reward:8.2f} | scores: {scores:8.2f}')
 
     def derive_from_history(self):
-        with open(self.args.dataset + "_" + self.args.search_mode + self.args.submanager_log_file, "a") as f:
+        with open(self.args.dataset + "_"  + self.args.submanager_log_file, "a") as f:
             lines = f.readlines()
 
         results = []
