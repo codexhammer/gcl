@@ -10,7 +10,7 @@ import utils.tensor_utils as utils
 
 
 def build_args():
-    parser = argparse.ArgumentParser(description='GraphNAS')
+    parser = argparse.ArgumentParser(description='gcl')
     register_default_args(parser)
     args = parser.parse_args()
 
@@ -20,22 +20,24 @@ def build_args():
 def register_default_args(parser):
     parser.add_argument('--mode', type=str, default='train',
                         choices=['train', 'derive'],
-                        help='train: Training GCL, derive: Deriving Architectures')
+                        help='train: Training GCL')
     parser.add_argument('--random_seed', type=int, default=123)
     parser.add_argument("--cuda", type=bool, default=False, required=False,
                         help="run in cuda mode")
     parser.add_argument('--save_epoch', type=int, default=2)
     parser.add_argument('--max_save_num', type=int, default=5)
     # controller
-    parser.add_argument('--layers_of_child_model', type=int, default=2)
-    parser.add_argument('--hidden_layers_of_mlp', type=int, default=2)
+    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[128, 256])
+
+    parser.add_argument('--channels_mlp', nargs='+', type=int, default=[200, 300])
+
     parser.add_argument('--shared_initial_step', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--entropy_mode', type=str, default='reward', choices=['reward', 'regularizer'])
     parser.add_argument('--entropy_coeff', type=float, default=1e-4)
     parser.add_argument('--shared_rnn_max_length', type=int, default=35)
     parser.add_argument('--load_path', type=str, default='')
-    parser.add_argument('--search_mode', type=str, default='macro')
+    # parser.add_argument('--search_mode', type=str, default='macro')
     parser.add_argument('--format', type=str, default='two')
     parser.add_argument('--max_epoch', type=int, default=10)
 
@@ -64,7 +66,7 @@ def register_default_args(parser):
                         help="multi_label or single_label task")
     parser.add_argument("--residual", action="store_false",
                         help="use residual connection")
-    parser.add_argument("--in-drop", type=float, default=0.6,
+    parser.add_argument("--in_drop", type=float, default=0.6,
                         help="input feature dropout")
     parser.add_argument("--lr", type=float, default=0.005,
                         help="learning rate")
@@ -80,7 +82,7 @@ def register_default_args(parser):
 
 def main(args):  # pylint:disable=redefined-outer-name
 
-    if args.cuda and not torch.cuda.is_available():  # cuda is not available
+    if args.cuda and torch.cuda.is_available():  # cuda is not available
         args.cuda = False
     # args.max_epoch = 1
     # args.controller_max_step = 1
