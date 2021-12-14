@@ -56,8 +56,8 @@ class Trainer(object):
         self.start_epoch = 0
 
         self.max_length = self.args.shared_rnn_max_length
+        self.max_data = args.max_data
 
-        self.with_retrain = False
         self.submodel_manager = None
         self.controller = None
         self.build_model()  # build controller and sub-model
@@ -70,8 +70,7 @@ class Trainer(object):
 
     def build_model(self):
         self.args.share_param = False
-        self.with_retrain = True
-        self.args.shared_initial_step = 0
+        # self.args.shared_initial_step = 0
         # if self.args.search_mode == "macro":
             # generate model description in macro way (generate entire network description)
         from search_space import MacroSearchSpace
@@ -111,48 +110,40 @@ class Trainer(object):
         - In the first phase, shared parameters are trained to exploration.
         - In the second phase, the controller's parameters are trained.
         """
+        # 1. Training the shared parameters of the child graphnas
+        self.train_shared()
+        # 2. Training the controller parameters theta
+        for data_no in range(self.max_data):
 
-        for self.epoch in range(self.start_epoch, self.args.max_epoch):
-            # 1. Training the shared parameters of the child graphnas
-            self.train_shared(max_step=self.args.shared_initial_step)
-            # 2. Training the controller parameters theta
             self.train_controller()
+            print("*" * 35, "Task ",data_no," training controller over", "*" * 35)
             # 3. Derive architectures
-            self.derive(sample_num=self.args.derive_num_sample)
+            # self.derive(sample_num=self.args.derive_num_sample)   # Need to be changed here!
 
-            if self.epoch % self.args.save_epoch == 0:
-                self.save_model()
+            # if self.epoch % self.args.save_epoch == 0:
+            #     self.save_model()
 
-        if self.args.derive_finally:
-            best_actions = self.derive()
-            print("best structure:" + str(best_actions))
-        self.save_model()
+        # if self.args.derive_finally:
+        #     best_actions = self.derive()
+        #     print("best structure:" + str(best_actions))
+        # self.save_model()
 
-    def train_shared(self, max_step=50, gnn_list=None):
-        """
-        Args:
-            max_step: Used to run extra training steps as a warm-up.
-            gnn: If not None, is used instead of calling sample().
+    def train_shared(self):
 
-        """
-        if max_step == 0:  # no train shared
-            return
+        print("*" * 35, "training Task 1", "*" * 35)
+        # gnn_list = gnn_list if gnn_list else self.controller.sample(max_step)
 
-        print("*" * 35, "training model", "*" * 35)
-        gnn_list = gnn_list if gnn_list else self.controller.sample(max_step)
-
-        for gnn in gnn_list:
             # gnn = self.form_gnn_info(gnn)
-            try:
-                _, val_score = self.submodel_manager.train(gnn, format=self.args.format)
-                logger.info(f"{gnn}, val_score:{val_score}")
-            except RuntimeError as e:
-                if 'CUDA' in str(e):  # usually CUDA Out of Memory
-                    print(e)
-                else:
-                    raise e
+        try:
+            _, val_score = self.submodel_manager.train()
+            logger.info(f"val_score:{val_score}")
+        except RuntimeError as e:
+            if 'CUDA' in str(e):  # usually CUDA Out of Memory
+                print(e)
+            else:
+                raise e
 
-        print("*" * 35, "training over", "*" * 35)
+        print("*" * 35, "1st task training over", "*" * 35)
 
     def get_reward(self, gnn_list, entropies, hidden):
         """
@@ -170,8 +161,7 @@ class Trainer(object):
         reward_list = []
         for gnn in gnn_list:
             # gnn = self.form_gnn_info(gnn)
-            reward = self.submodel_manager.test_with_param(gnn, format=self.args.format,
-                                                           with_retrain=self.with_retrain)
+            reward = self.submodel_manager.test_with_param(gnn)
 
             if reward is None:  # cuda error hanppened
                 reward = 0
@@ -193,6 +183,7 @@ class Trainer(object):
         """
             Train controller to find better structure.
         """
+        increment = False
         print("*" * 35, "training controller", "*" * 35)
         model = self.controller
         model.train()
@@ -204,7 +195,7 @@ class Trainer(object):
 
         hidden = self.controller.init_hidden(self.args.batch_size)
         total_loss = 0
-        for step in range(self.args.controller_max_step):
+        for _ in range(self.args.controller_max_step):
             # sample graphnas
             structure_list, log_probs, entropies = self.controller.sample(with_details=True)
 
@@ -259,7 +250,7 @@ class Trainer(object):
             self.controller_step += 1
             torch.cuda.empty_cache()
 
-        print("*" * 35, "training controller over", "*" * 35)
+        self.submodel_manager.task_increment()
 
     def evaluate(self, gnn):
         """
@@ -267,7 +258,7 @@ class Trainer(object):
         """
         self.controller.eval()
         gnn = self.form_gnn_info(gnn)
-        results = self.submodel_manager.retrain(gnn, format=self.args.format)
+        results = self.submodel_manager.retrain(gnn)
         if results:
             reward, scores = results
         else:
@@ -333,8 +324,7 @@ class Trainer(object):
             filename = self.model_info_filename
             for action in gnn_list:
                 gnn = self.form_gnn_info(action)
-                reward = self.submodel_manager.test_with_param(gnn, format=self.args.format,
-                                                               with_retrain=self.with_retrain)
+                reward = self.submodel_manager.test_with_param(gnn)
 
                 if reward is None:  # cuda error hanppened
                     continue
@@ -351,7 +341,7 @@ class Trainer(object):
 
     @property
     def model_info_filename(self):
-        return f"{self.args.dataset}_{self.args.search_mode}_{self.args.format}_results.txt"
+        return f"{self.args.dataset}_results.txt"
 
     @property
     def controller_path(self):
