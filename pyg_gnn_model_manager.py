@@ -14,7 +14,7 @@ from utils.model_utils import EarlyStop, TopAverage, process_action
 from pyg_gnn_layer import GraphLayer
 
 
-def load_data(dataset="Cora", supervised=False, full_data=True, data_no=0):
+def load_data(data_no=0, dataset="Cora", supervised=False, full_data=True, ):
     '''
     support semi-supervised and supervised
     :param dataset:
@@ -70,7 +70,10 @@ class GeoCitationManager():
         self.epochs = args.epochs
         self.att_type = att_type
 
-        self.loss_fn = nn.CrossEntropyLoss()
+        self.loss_fn1 = nn.CrossEntropyLoss()
+
+        self.loss_fn2 = 0       #Add here
+
         device = torch.device('cuda' if args.cuda else 'cpu')
         self.data.to(device)
 
@@ -80,8 +83,8 @@ class GeoCitationManager():
         self.dropout = args.in_drop
         self.residual = residual
         self.batch_normal = batch_normal
-        self.heads = 1
-        self.max_data = 6
+        self.heads = args.heads
+        self.max_data = args.max_data
 
 
         self.channels_gnn.insert(0,self.num_feat)
@@ -93,7 +96,9 @@ class GeoCitationManager():
             self.model.cuda()
 
         self.args = args
-
+    
+    def task_increment(self):
+        self.data_no = self.data_no + 1
 
     def evaluate_actions(self, actions_gnn, actions_mlp, state_num_gnn=1, state_num_mlp=2):
         state_length_gnn = len(actions_gnn)
@@ -118,7 +123,7 @@ class GeoCitationManager():
         else:
             return
 
-    def evaluate(self, actions=None, format="two"):
+    def evaluate(self, actions=None):
         print("train action:", actions)
 
         # create model
@@ -136,9 +141,11 @@ class GeoCitationManager():
                 raise e
         return val_acc, test_acc
     
-    def train(self, actions=None, format="two"):
+    def train(self, actions=None):
         if self.data_no >= self.max_data:
-            return None 
+            raise Exception("Data no. exceeded!")
+        if self.data_no>0 and self.data_no<self.max_data:
+            load_data()
 
         self.build_hidden_layers(actions)
         origin_action = actions
@@ -146,7 +153,7 @@ class GeoCitationManager():
 
         try:
             # use optimizer
-            self.model, val_acc = self.run_model(self.model, self.optimizer, self.loss_fn, self.data, self.epochs, cuda=self.args.cuda,
+            self.model, val_acc = self.run_model(self.model, self.optimizer, self.loss_fn1, self.data, self.epochs, cuda=self.args.cuda,
                                             half_stop_score=max(self.reward_manager.get_top_average() * 0.7, 0.4))
         except RuntimeError as e:
             if "cuda" in str(e) or "CUDA" in str(e):
@@ -177,11 +184,11 @@ class GeoCitationManager():
         model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, att_type)
         return model
 
-    def retrain(self, actions, format="two"):
-        return self.train(actions, format)
+    def retrain(self, actions):
+        return self.train(actions)
 
-    def test_with_param(self, actions=None, format="two", with_retrain=False):
-        return self.train(actions, format)
+    def test_with_param(self, actions=None):
+        return self.train(actions)
 
     @staticmethod
     def run_model(model, optimizer, loss_fn, data, epochs, early_stop=5, tmp_model_file="geo_citation.pkl",
@@ -193,6 +200,7 @@ class GeoCitationManager():
         min_val_loss = float("inf")
         model_val_acc = 0
         print("Number of train datas:", data.train_mask.sum())
+        print("Model = ",model)
         for epoch in range(1, epochs + 1):
             model.train()
             t0 = time.time()
@@ -206,7 +214,7 @@ class GeoCitationManager():
             # train_loss = loss.item()
 
             # evaluate
-            if epoch%50==0:
+            if epoch%50==0: # Need change here
                 model.eval()
                 logits = model(data.x, data.edge_index)
                 logits = F.log_softmax(logits, 1)
@@ -216,20 +224,20 @@ class GeoCitationManager():
                 val_acc = evaluate(logits, data.y, data.val_mask)
                 test_acc = evaluate(logits, data.y, data.test_mask)
 
-            loss = loss_fn(logits[data.val_mask], data.y[data.val_mask])
-            val_loss = loss.item()
-            if val_loss < min_val_loss:  # and train_loss < min_train_loss
-                min_val_loss = val_loss
-                model_val_acc = val_acc
-                if test_acc > best_performance:
-                    best_performance = test_acc
-            if show_info:
-                print(
-                    "Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
-                        epoch, loss.item(), np.mean(dur), train_acc, val_acc, test_acc))
+                loss = loss_fn(logits[data.val_mask], data.y[data.val_mask])
+                val_loss = loss.item()
+                if val_loss < min_val_loss:  # and train_loss < min_train_loss
+                    min_val_loss = val_loss
+                    model_val_acc = val_acc
+                    if test_acc > best_performance:
+                        best_performance = test_acc
+                if show_info:
+                    print(
+                        "Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
+                            epoch, loss.item(), np.mean(dur), train_acc, val_acc, test_acc))
 
-                end_time = time.time()
-                print("Each Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
+        end_time = time.time()
+        print("Each Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
         print(f"val_score:{model_val_acc},test_score:{best_performance}")
         if return_best:
             return model, model_val_acc, best_performance
