@@ -38,7 +38,7 @@ def register_default_args(parser):
     parser.add_argument('--shared_rnn_max_length', type=int, default=35)
     parser.add_argument('--load_path', type=str, default='')
     # parser.add_argument('--search_mode', type=str, default='macro')
-    parser.add_argument('--format', type=str, default='two')
+    parser.add_argument('--max_data', type=int, default=6)
     parser.add_argument('--max_epoch', type=int, default=10)
 
     parser.add_argument('--ema_baseline_decay', type=float, default=0.95)
@@ -60,8 +60,8 @@ def register_default_args(parser):
                         help="The input dataset.")
     parser.add_argument("--epochs", type=int, default=300,
                         help="number of training epochs")
-    parser.add_argument("--retrain_epochs", type=int, default=300,
-                        help="number of training epochs")
+    parser.add_argument("--heads", type=int, default=1,
+                        help="number of heads")
     parser.add_argument("--multi_label", type=bool, default=False,
                         help="multi_label or single_label task")
     parser.add_argument("--residual", action="store_false",
