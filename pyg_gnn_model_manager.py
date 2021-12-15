@@ -14,7 +14,7 @@ from utils.model_utils import EarlyStop, TopAverage, process_action
 from pyg_gnn_layer import GraphLayer
 
 
-def load_data(data_no=0, dataset="Cora", supervised=False, full_data=True, ):
+def load_data(data_no=0, dataset="Cora", supervised=False, full_data=True):
     '''
     support semi-supervised and supervised
     :param dataset:
@@ -145,7 +145,7 @@ class GeoCitationManager():
         if self.data_no >= self.max_data:
             raise Exception("Data no. exceeded!")
         if self.data_no>0 and self.data_no<self.max_data:
-            load_data()
+            load_data(data_no = self.data_no)
 
         self.build_hidden_layers(actions)
         origin_action = actions
