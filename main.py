@@ -22,7 +22,7 @@ def register_default_args(parser):
                         choices=['train', 'derive'],
                         help='train: Training GCL')
     parser.add_argument('--random_seed', type=int, default=123)
-    parser.add_argument("--cuda", type=bool, default=False, required=False,
+    parser.add_argument("--cuda", type=bool, default=True, required=False,
                         help="run in cuda mode")
     parser.add_argument('--save_epoch', type=int, default=2)
     parser.add_argument('--max_save_num', type=int, default=5)
