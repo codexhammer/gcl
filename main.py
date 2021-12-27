@@ -2,7 +2,7 @@
 
 import argparse
 import time
-
+import random
 import torch
 
 import trainer as trainer
@@ -54,6 +54,16 @@ def register_default_args(parser):
     parser.add_argument('--derive_num_sample', type=int, default=100)
     parser.add_argument('--derive_finally', type=bool, default=True)
     parser.add_argument('--derive_from_history', type=bool, default=True)
+    
+    #buffer
+    parser.add_argument('--buffer_size', type=int, default= 5120, required=True, 
+                        help='The size of the memory buffer.')
+    parser.add_argument('--minibatch_size', type=int, default= 128, required=True,
+                        help='The batch size of the memory buffer.')
+    parser.add_argument('--alpha', type=float, default = 0.5, required=True,
+                        help='Penalty weight.')
+    parser.add_argument('--beta', type=float, default = 0.5 , required=True,
+                        help='Penalty weight.')
 
     # child model
     parser.add_argument("--dataset", type=str, default="Cora", required=False,

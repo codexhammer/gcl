@@ -11,6 +11,7 @@ class GraphLayer(nn.Module):
                  num_class,
                  heads=1,
                  att_type="gcn",
+                 dropout=0.5,
                  bias_gnn=True,
                  bias_mlp=True):
         super().__init__()
@@ -19,6 +20,7 @@ class GraphLayer(nn.Module):
         self.att_type = att_type
         self.bias_gnn = bias_gnn
         self.heads = heads
+        self.dropout = dropout
         self.gnn = nn.ModuleList()
         
         for channel_no in range(len(channels_gnn)-1):
@@ -99,8 +101,11 @@ class GraphLayer(nn.Module):
     def forward(self,x,edge_index):
         for i in range(len(self.gnn)):
             x = self.gnn[i](x, edge_index)
+            if self.dropout is not None:
+                x = nn.Dropout(self.dropout)(x)
         for i in range(len(self.linear)):
             x = self.linear[i](x)
+            x = nn.LeakyReLU()(x)
         return x
 
 # print("Initial parameters")

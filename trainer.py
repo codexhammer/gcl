@@ -130,7 +130,6 @@ class Trainer(object):
 
     def train_shared(self):
 
-        print("*" * 35, "training Task 1", "*" * 35)
         # gnn_list = gnn_list if gnn_list else self.controller.sample(max_step)
 
             # gnn = self.form_gnn_info(gnn)
@@ -161,7 +160,7 @@ class Trainer(object):
         reward_list = []
         for gnn in gnn_list:
             # gnn = self.form_gnn_info(gnn)
-            reward = self.submodel_manager.test_with_param(gnn)
+            reward = self.submodel_manager.train(gnn)
 
             if reward is None:  # cuda error hanppened
                 reward = 0
@@ -258,7 +257,7 @@ class Trainer(object):
         """
         self.controller.eval()
         gnn = self.form_gnn_info(gnn)
-        results = self.submodel_manager.retrain(gnn)
+        results = self.submodel_manager.train(gnn)
         if results:
             reward, scores = results
         else:
@@ -324,7 +323,7 @@ class Trainer(object):
             filename = self.model_info_filename
             for action in gnn_list:
                 gnn = self.form_gnn_info(action)
-                reward = self.submodel_manager.test_with_param(gnn)
+                reward = self.submodel_manager.train(gnn)
 
                 if reward is None:  # cuda error hanppened
                     continue
