@@ -14,7 +14,7 @@ from utils.model_utils import EarlyStop, TopAverage, process_action
 from pyg_gnn_layer import GraphLayer
 
 
-def load_data(data_no=0, dataset="Cora", supervised=False, full_data=True):
+def load_data(data_no=0, dataset="Cora", supervised=False, full_data=True, cuda=True):
     '''
     support semi-supervised and supervised
     :param dataset:
@@ -44,6 +44,8 @@ def load_data(data_no=0, dataset="Cora", supervised=False, full_data=True):
             data.val_mask[data.num_nodes - 1000: data.num_nodes - 500] = 1
             data.test_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
             data.test_mask[data.num_nodes - 500:] = 1
+    if cuda:
+        data = data.cuda()
     return data
 
 def evaluate(output, labels, mask):
@@ -57,9 +59,10 @@ class GeoCitationManager():
         
         self.data_no = 0
         if hasattr(args, "supervised"):
-            self.data = load_data(self.data_no, args.dataset, args.supervised)
+            self.data = load_data(self.data_no, args.dataset, args.supervised, args.cuda)
         else:
-            self.data = load_data(self.data_no, args.dataset)
+            self.data = load_data(self.data_no, args.dataset, args.cuda)
+        print("Dataset = ",args.dataset )
 
         self.num_feat =  self.data.num_features
         self.num_class = self.data.y.max().item() + 1
@@ -75,8 +78,6 @@ class GeoCitationManager():
         self.alpha = args.alpha
         self.beta = args.beta
 
-        self.data.to(args.cuda)
-
         # Copied from pyg_gnn
         self.channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
         self.channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
@@ -85,7 +86,6 @@ class GeoCitationManager():
         self.batch_normal = batch_normal
         self.heads = args.heads
         self.max_data = args.max_data
-
 
         self.channels_gnn.insert(0,self.num_feat)
 
@@ -143,7 +143,7 @@ class GeoCitationManager():
         if self.data_no >= self.max_data:
             raise Exception("Data no. exceeded!")
         if self.data_no>0 and self.data_no<self.max_data:
-            load_data(data_no = self.data_no)
+            load_data(data_no = self.data_no, cuda = self.args.cuda)
 
         print("*" * 35, " Training Task ",self.data_no, " *" * 35)
         self.build_hidden_layers(actions)
@@ -182,33 +182,33 @@ class GeoCitationManager():
         model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, att_type, dropout)
         return model
 
-    def observe(self, inputs, labels, not_aug_inputs):
+    def observe(self):
 
         self.optimizer.zero_grad()
-        not_aug_inputs = self.data
+        # not_aug_inputs = copy.deepcopy(self.data)
         logits = self.model(self.data.x, self.data.edge_index)
         outputs = F.log_softmax(logits, 1)
         loss = self.loss(outputs[self.data.train_mask], self.data.y[self.data.train_mask])
 
         if not self.buffer.is_empty():
             buf_inputs, _, buf_logits = self.buffer.get_data(
-                self.args.minibatch_size, transform=self.transform)
-            buf_outputs = self.net(buf_inputs)
+                self.args.minibatch_size, transform=None)
+            buf_outputs = self.model(buf_inputs)
             loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
 
             buf_inputs, buf_labels, _ = self.buffer.get_data(
-                self.args.minibatch_size, transform=self.transform)
-            buf_outputs = self.net(buf_inputs)
+                self.args.minibatch_size, transform=None)
+            buf_outputs = self.model(buf_inputs)
             loss += self.args.beta * self.loss(buf_outputs, buf_labels)
 
         loss.backward()
         self.optimizer.step()
 
-        self.buffer.add_data(examples=not_aug_inputs,
-                             labels=labels,
+        self.buffer.add_data(examples=self.data,
+                             labels=self.data.y[self.data.train_mask],
                              logits=logits.data)
 
-        return loss.item()
+        return loss.item(), outputs
 
     
     def run_model(self, return_best=False, show_info=True):
@@ -223,9 +223,9 @@ class GeoCitationManager():
         for epoch in range(1, self.epochs + 1):
             self.model.train()
             t0 = time.time()
-            self.observe()
+            loss, outputs = self.observe()
             # forward
-            # logits = 
+            # logits = self.model(self.data.x, self.data.edge_index)
             # logits = F.log_softmax(logits, 1)
             # loss = self.loss(logits[self.data.train_mask], self.data.y[self.data.train_mask])
             # loss.backward()
@@ -233,27 +233,30 @@ class GeoCitationManager():
             # train_loss = loss.item()
 
             # evaluate
-            if epoch%50==0: # Need change here
-                self.model.eval()
-                logits = self.model(self.data.x, self.data.edge_index)
-                # logits = F.log_softmax(logits, 1)
-                train_acc = evaluate(logits, self.data.y, self.data.train_mask)
-                dur.append(time.time() - t0)
+            if epoch%50==0 and show_info:
+                train_acc = evaluate(outputs, self.data.y, self.data.train_mask)                
+                print(
+                    "Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
+                        epoch, loss.item(), np.mean(dur), train_acc))
+                 # Need change here
+        self.model.eval()
+        logits = self.model(self.data.x, self.data.edge_index)
+        logits = F.log_softmax(logits, 1)
+        dur.append(time.time() - t0)
 
-                val_acc = evaluate(logits, self.data.y, self.data.val_mask)
-                test_acc = evaluate(logits, self.data.y, self.data.test_mask)
+        val_acc = evaluate(logits, self.data.y, self.data.val_mask)
+        test_acc = evaluate(logits, self.data.y, self.data.test_mask)
+        print("Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
+                        epoch, loss.item(), np.mean(dur), val_acc, test_acc))
 
-                loss = self.loss(logits[self.data.val_mask], self.data.y[self.data.val_mask])
-                val_loss = loss.item()
-                if val_loss < min_val_loss:  # and train_loss < min_train_loss
-                    min_val_loss = val_loss
-                    model_val_acc = val_acc
-                    if test_acc > best_performance:
-                        best_performance = test_acc
-                if show_info:
-                    print(
-                        "Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
-                            epoch, loss.item(), np.mean(dur), train_acc, val_acc, test_acc))
+        loss = self.loss(logits[self.data.val_mask], self.data.y[self.data.val_mask])
+        val_loss = loss.item()
+        if val_loss < min_val_loss:  # and train_loss < min_train_loss
+            min_val_loss = val_loss
+            model_val_acc = val_acc
+            if test_acc > best_performance:
+                best_performance = test_acc
+
 
         end_time = time.time()
         print("Each Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
