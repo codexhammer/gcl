@@ -56,13 +56,13 @@ def register_default_args(parser):
     parser.add_argument('--derive_from_history', type=bool, default=True)
     
     #buffer
-    parser.add_argument('--buffer_size', type=int, default= 5120, required=True, 
+    parser.add_argument('--buffer_size', type=int, default= 5120, required=False, 
                         help='The size of the memory buffer.')
-    parser.add_argument('--minibatch_size', type=int, default= 128, required=True,
+    parser.add_argument('--minibatch_size', type=int, default= 128, required=False,
                         help='The batch size of the memory buffer.')
-    parser.add_argument('--alpha', type=float, default = 0.5, required=True,
+    parser.add_argument('--alpha', type=float, default = 0.5, required=False,
                         help='Penalty weight.')
-    parser.add_argument('--beta', type=float, default = 0.5 , required=True,
+    parser.add_argument('--beta', type=float, default = 0.5 , required=False,
                         help='Penalty weight.')
 
     # child model
@@ -93,7 +93,11 @@ def register_default_args(parser):
 def main(args):  # pylint:disable=redefined-outer-name
 
     if args.cuda and torch.cuda.is_available():  # cuda is not available
+        args.cuda = True
+        print("Training with cuda...")
+    else:
         args.cuda = False
+        print("Training with cpu...")
     # args.max_epoch = 1
     # args.controller_max_step = 1
     # args.derive_num_sample = 1
