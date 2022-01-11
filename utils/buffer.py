@@ -60,7 +60,7 @@ class Buffer:
             if attr is not None and not hasattr(self, attr_str):
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
                 setattr(self, attr_str, torch.zeros((self.buffer_size,
-                        *attr.shape[1:]), dtype=typ, device=self.device))
+                        *attr.shape), dtype=typ, device=self.device))
 
     def add_data(self, examples, labels=None, logits=None, task_labels=None):
         """
