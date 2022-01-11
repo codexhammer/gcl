@@ -10,27 +10,27 @@ class GraphLayer(nn.Module):
                  channels_mlp,
                  num_class,
                  heads=1,
-                 att_type="gcn",
+                 mp_nn="gcn",
                  dropout=0.5,
                  bias_gnn=True,
                  bias_mlp=True):
         super().__init__()
         
         self.channels_gnn = channels_gnn
-        self.att_type = att_type
+        self.mp_nn = mp_nn
         self.bias_gnn = bias_gnn
         self.heads = heads
         self.dropout = dropout
         self.gnn = nn.ModuleList()
         
         for channel_no in range(len(channels_gnn)-1):
-            if self.att_type == "gcn":
+            if self.mp_nn == "gcn":
                 self.gnn.append(GCNConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias=bias_gnn))
                 
-            elif self.att_type == "gat":
+            elif self.mp_nn == "gat":
                 self.gnn.append(GATConv(in_channels = channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], heads = self.heads,bias=bias_gnn,concat=False))
 
-            elif self.att_type == "sg":
+            elif self.mp_nn == "sg":
                 self.gnn.append(SGConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias = bias_gnn))
             
             else:
@@ -59,18 +59,18 @@ class GraphLayer(nn.Module):
         for i in range(len(self.gnn)):
             model_param = self.model_parameters(self.gnn[i])
             
-            if self.att_type == "gcn":
+            if self.mp_nn == "gcn":
                 self.gnn[i] = GCNConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], bias=self.bias_gnn)
 
-            elif self.att_type == "gat":
+            elif self.mp_nn == "gat":
                 self.gnn.append(GATConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], heads = self.heads, bias=self.bias_gnn, concat=False))
 
-            elif self.att_type == "sg":
+            elif self.mp_nn == "sg":
                 self.gnn.append(SGConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn))
 
 
             with torch.no_grad():
-                if self.att_type == "gcn":
+                if self.mp_nn == "gcn":
                     self.gnn[i].lin.weight[0:model_param["lin.weight"].shape[0] , 0:model_param["lin.weight"].shape[1]] = model_param["lin.weight"]
                     if self.bias_gnn:
                         self.gnn[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
