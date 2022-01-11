@@ -59,7 +59,9 @@ def register_default_args(parser):
     parser.add_argument('--buffer_size', type=int, default= 5120, required=False, 
                         help='The size of the memory buffer.')
     parser.add_argument('--minibatch_size', type=int, default= 128, required=False,
-                        help='The batch size of the memory buffer.')
+                        help='The mini-batch size of the memory buffer.')
+    parser.add_argument('--batch_size', type=int, default= 1000, required=False,
+                        help='The batch size of the graph neighbour sampling.')
     parser.add_argument('--alpha', type=float, default = 0.5, required=False,
                         help='Penalty weight.')
     parser.add_argument('--beta', type=float, default = 0.5 , required=False,
@@ -90,7 +92,7 @@ def register_default_args(parser):
     parser.add_argument('--submanager_log_file', type=str, default=f"sub_manager_logger_file_{time.time()}.txt")
 
 
-def main(args):  # pylint:disable=redefined-outer-name
+def main(args):
 
     if args.cuda and torch.cuda.is_available():  # cuda is not available
         args.cuda = True
@@ -110,7 +112,7 @@ def main(args):  # pylint:disable=redefined-outer-name
     trnr = trainer.Trainer(args)
 
     if args.mode == 'train':
-        print(args)
+        print(f"\nArguments = {args}\n\n")
         trnr.train()
     elif args.mode == 'derive':
         trnr.derive()
