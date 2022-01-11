@@ -6,7 +6,7 @@ import scipy.signal
 import torch
 
 import utils.tensor_utils as utils
-from pyg_gnn_model_manager import GeoCitationManager
+from pyg_gnn_train import Training
 
 logger = utils.get_logger()
 
@@ -87,7 +87,7 @@ class Trainer(object):
                                             cuda=self.args.cuda)
 
         if self.args.dataset in ["Cora", "Citeseer", "Pubmed"]:
-            self.submodel_manager = GeoCitationManager(self.args) ### Changed
+            self.submodel_manager = Training(self.args) ### Changed
 
         if self.cuda:
             self.controller.cuda()
