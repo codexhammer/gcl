@@ -5,7 +5,7 @@ import utils.tensor_utils as utils
 
 
 # not contains skip-connection
-class SimpleNASController(torch.nn.Module):
+class Controller(torch.nn.Module):
     def _construct_action(self, actions):
         structure_list = []
         for single_action in actions:
@@ -24,7 +24,7 @@ class SimpleNASController(torch.nn.Module):
 
         if not self.check_action_list(action_list_gnn, action_list_mlp, search_space_gnn, search_space_mlp):
             raise RuntimeError("There are actions not contained in search_space")
-        super(SimpleNASController, self).__init__()
+        super(Controller, self).__init__()
         self.mode = mode
         # search space or operators set containing operators used to build GNN
         self.search_space_gnn = search_space_gnn
@@ -183,5 +183,3 @@ class SimpleNASController(torch.nn.Module):
         zeros = torch.zeros(batch_size, self.controller_hid)
         return (utils.get_variable(zeros, self.is_cuda, requires_grad=False),
                 utils.get_variable(zeros.clone(), self.is_cuda, requires_grad=False))
-
-
