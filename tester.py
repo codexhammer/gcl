@@ -1,7 +1,7 @@
 import os.path as osp
 import time
 from search_space import MacroSearchSpace
-from pyg_gnn_layer import GraphLayer 
+from gnn_layer import GraphLayer 
 import numpy as np
 import torch, torch.nn as nn
 import torch.nn.functional as F
