@@ -25,14 +25,17 @@ class DataLoader():
         print(f"Features = {dataset.num_node_features}")
         print(f"Classes = {dataset.num_classes}")
 
-        n_class = dataset.num_classes
+        self.n_class = dataset.num_classes
         self.classes_in_task = {}
 
         # self.n_tasks = 3
         self.n_tasks = args.n_tasks
         self.args = args
         self.current_task = 0
-        n_class_per_task = n_class // self.n_tasks
+
+        n_class_per_task = self.n_class // self.n_tasks
+
+        assert n_class_per_task > 1, "Reduce the number of tasks in the args: n_tasks"
 
         for task_i in range(self.n_tasks):
             self.classes_in_task[task_i] = list(range( task_i * n_class_per_task, (task_i+1) * n_class_per_task ))
@@ -42,7 +45,10 @@ class DataLoader():
     
     def load_data(self):
         return self.data
-    
+
+    def get_label_offset(self, task_i):
+        return task_i * self.n_labels_per_task, (task_i + 1) * self.n_labels_per_task 
+
     def __iter__(self):
         return self
     
@@ -73,34 +79,15 @@ class DataLoader():
             test_task_nid = torch.flatten(test_task_nid)
             
             
-            self.current_task += 1
+            self.current_task += 1  # Need change here
             # return current_task, (train_mask, val_mask, test_mask, train_task_nid)
             self.test_mask_info[current_task] = test_task_nid
 
             return current_task, (train_task_nid, val_task_nid)
     
     def test_nodes(self, test_task_no):
-        return self.test_mask_info[test_task_no]
+        return self.test_mask_info[test_task_no], self.classes_in_task[test_task_no]
 
-
-class Testloader():
-    def __init__(self, dataset_info):
-        self.g = None
-        self.newg = []
-
-    def add_task(self, task_i, masks):
-        self.task_info[task_i] = masks
-
-    def retrieve_task(self, task_i):
-        """Retrieve information for task_i
-        """
-        return self.task_info[task_i]
-
-    def old_tasks(self):
-        return self.task_info.keys()
-
-    def get_label_offset(self, task_i):
-        return task_i * self.n_labels_per_task, (task_i + 1) * self.n_labels_per_task 
 
 
 
