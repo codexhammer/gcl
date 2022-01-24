@@ -24,24 +24,3 @@ class MacroSearchSpace():
         action_list_gnn = action_name_gnn * num_of_layers_gnn
         action_list_mlp = action_name_mlp*num_of_layers_mlp
         return action_list_gnn, action_list_mlp
-
-
-def act_map():
-    # if act == "linear":
-    #     return lambda x: x
-    # elif act == "elu":
-    #     return torch.nn.functional.elu
-    # elif act == "sigmoid":
-    #     return torch.sigmoid
-    # elif act == "tanh":
-    #     return torch.tanh
-    # elif act == "relu":
-    #     return torch.nn.functional.relu
-    # elif act == "relu6":
-    #     return torch.nn.functional.relu6
-    # elif act == "softplus":
-    #     return torch.nn.functional.softplus
-    # elif act == "leaky_relu":
-    return torch.nn.functional.leaky_relu
-    # else:
-    #     raise Exception("wrong activate function")
