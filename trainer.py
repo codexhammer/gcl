@@ -6,7 +6,8 @@ import scipy.signal
 import torch
 
 import utils.tensor_utils as utils
-from pyg_gnn_train import Training
+from gnn_train import Training
+from tqdm import tqdm
 
 logger = utils.get_logger()
 
@@ -56,9 +57,9 @@ class Trainer(object):
         self.start_epoch = 0
 
         self.max_length = self.args.shared_rnn_max_length
-        self.max_data = args.max_data
+        self.n_tasks = args.n_tasks
 
-        self.submodel_manager = None
+        self.train_gnn = None
         self.controller = None
         self.build_model()  # build controller and sub-model
 
@@ -78,16 +79,15 @@ class Trainer(object):
         self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
         self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
         # build RNN controller
-        from graphnas_controller import SimpleNASController
-        self.controller = SimpleNASController(self.args, 
+        from graphnas_controller import Controller
+        self.controller = Controller(self.args, 
                                             search_space_gnn = self.search_space_gnn,
                                             search_space_mlp = self.search_space_mlp,
                                             action_list_gnn = self.action_list_gnn,
                                             action_list_mlp = self.action_list_mlp,                                                   
                                             cuda=self.args.cuda)
 
-        if self.args.dataset in ["Cora", "Citeseer", "Pubmed"]:
-            self.submodel_manager = Training(self.args) ### Changed
+        self.train_gnn = Training(self.args) ### Changed
 
         if self.cuda:
             self.controller.cuda()
@@ -110,13 +110,17 @@ class Trainer(object):
         - In the first phase, shared parameters are trained to exploration.
         - In the second phase, the controller's parameters are trained.
         """
-        # 1. Training the shared parameters of the child graphnas
-        self.train_shared()
         # 2. Training the controller parameters theta
-        for data_no in range(self.max_data):
+        for task_no in tqdm(range(self.n_tasks)):
+            
+            tqdm.write(f" Training Task number {task_no} ".center(24, "*"),end="\n")
+            
+            self.train_gnn.task_increment()
 
-            self.train_controller()
-            print("*" * 35, "Task ",data_no," training controller over", "*" * 35)
+            if task_no == 0:
+                self.train_init()
+            else:                
+                self.train_controller()
             # 3. Derive architectures
             # self.derive(sample_num=self.args.derive_num_sample)   # Need to be changed here!
 
@@ -128,13 +132,13 @@ class Trainer(object):
         #     print("best structure:" + str(best_actions))
         # self.save_model()
 
-    def train_shared(self):
+    def train_init(self):        
+        """
+            Train first task withput controller.
+        """
 
-        # gnn_list = gnn_list if gnn_list else self.controller.sample(max_step)
-
-            # gnn = self.form_gnn_info(gnn)
         try:
-            _, val_score = self.submodel_manager.train()
+            _, val_score = self.train_gnn.train()
             logger.info(f"val_score:{val_score}")
         except RuntimeError as e:
             if 'CUDA' in str(e):  # usually CUDA Out of Memory
@@ -144,45 +148,11 @@ class Trainer(object):
 
         print("*" * 35, "1st task training over", "*" * 35)
 
-    def get_reward(self, gnn_list, entropies, hidden):
-        """
-        Computes the reward of a single sampled model on validation data.
-        """
-        if not isinstance(entropies, np.ndarray):
-            entropies = entropies.data.cpu().numpy()
-        if isinstance(gnn_list, dict):
-            gnn_list = [gnn_list]
-        if isinstance(gnn_list[0], list) or isinstance(gnn_list[0], dict):
-            pass
-        else:
-            gnn_list = [gnn_list]  # when structure_list is one structure
-
-        reward_list = []
-        for gnn in gnn_list:
-            # gnn = self.form_gnn_info(gnn)
-            reward = self.submodel_manager.train(gnn)
-
-            if reward is None:  # cuda error hanppened
-                reward = 0
-            else:
-                reward = reward[1]
-
-            reward_list.append(reward)
-
-        if self.args.entropy_mode == 'reward':
-            rewards = reward_list + self.args.entropy_coeff * entropies
-        elif self.args.entropy_mode == 'regularizer':
-            rewards = reward_list * np.ones_like(entropies)
-        else:
-            raise NotImplementedError(f'Unkown entropy mode: {self.args.entropy_mode}')
-
-        return rewards, hidden
 
     def train_controller(self):
         """
-            Train controller to find better structure.
+            Train controller for subsequent tasks.
         """
-        increment = False
         print("*" * 35, "training controller", "*" * 35)
         model = self.controller
         model.train()
@@ -195,7 +165,6 @@ class Trainer(object):
         hidden = self.controller.init_hidden(self.args.batch_size)
         total_loss = 0
         for _ in range(self.args.controller_max_step):
-            # sample graphnas
             structure_list, log_probs, entropies = self.controller.sample(with_details=True)
 
             # calculate reward
@@ -249,7 +218,41 @@ class Trainer(object):
             self.controller_step += 1
             torch.cuda.empty_cache()
 
-        self.submodel_manager.task_increment()
+
+    def get_reward(self, gnn_list, entropies, hidden):
+        """
+        Computes the reward of a single sampled model on validation data.
+        """
+        if not isinstance(entropies, np.ndarray):
+            entropies = entropies.data.cpu().numpy()
+        if isinstance(gnn_list, dict):
+            gnn_list = [gnn_list]
+        if isinstance(gnn_list[0], list) or isinstance(gnn_list[0], dict):
+            pass
+        else:
+            gnn_list = [gnn_list]  # when structure_list is one structure
+
+        reward_list = []
+        for gnn in gnn_list:
+            # gnn = self.form_gnn_info(gnn)
+            reward = self.train_gnn.train(gnn)
+
+            if reward is None:  # cuda error hanppened
+                reward = 0
+            else:
+                reward = reward[1]
+
+            reward_list.append(reward)
+
+        if self.args.entropy_mode == 'reward':
+            rewards = reward_list + self.args.entropy_coeff * entropies
+        elif self.args.entropy_mode == 'regularizer':
+            rewards = reward_list * np.ones_like(entropies)
+        else:
+            raise NotImplementedError(f'Unkown entropy mode: {self.args.entropy_mode}')
+
+        return rewards, hidden
+
 
     def evaluate(self, gnn):
         """
@@ -257,7 +260,7 @@ class Trainer(object):
         """
         self.controller.eval()
         gnn = self.form_gnn_info(gnn)
-        results = self.submodel_manager.train(gnn)
+        results = self.train_gnn.train(gnn)
         if results:
             reward, scores = results
         else:
@@ -285,7 +288,7 @@ class Trainer(object):
             torch.cuda.manual_seed_all(123)
             val_scores_list = []
             for i in range(20):
-                val_acc, test_acc = self.submodel_manager.evaluate(actions)
+                val_acc, test_acc = self.train_gnn.evaluate(actions)
                 val_scores_list.append(val_acc)
 
             tmp_score = np.mean(val_scores_list)
@@ -301,7 +304,7 @@ class Trainer(object):
         test_scores_list = []
         for i in range(100):
             # manager.shuffle_data()
-            val_acc, test_acc = self.submodel_manager.evaluate(best_structure)
+            val_acc, test_acc = self.train_gnn.evaluate(best_structure)
             test_scores_list.append(test_acc)
         print(f"best results: {best_structure}: {np.mean(test_scores_list):.8f} +/- {np.std(test_scores_list)}")
         return best_structure
@@ -323,7 +326,7 @@ class Trainer(object):
             filename = self.model_info_filename
             for action in gnn_list:
                 gnn = self.form_gnn_info(action)
-                reward = self.submodel_manager.train(gnn)
+                reward = self.train_gnn.train(gnn)
 
                 if reward is None:  # cuda error hanppened
                     continue
