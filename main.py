@@ -24,12 +24,9 @@ def register_default_args(parser):
     parser.add_argument('--random_seed', type=int, default=123)
     parser.add_argument("--cuda", type=bool, default=True, required=False,
                         help="run in cuda mode")
-    parser.add_argument('--save_epoch', type=int, default=2)
     parser.add_argument('--max_save_num', type=int, default=5)
-    # controller
-    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[128, 256])
 
-    parser.add_argument('--channels_mlp', nargs='+', type=int, default=[200, 300])
+    # controller
 
     parser.add_argument('--shared_initial_step', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
@@ -38,8 +35,8 @@ def register_default_args(parser):
     parser.add_argument('--shared_rnn_max_length', type=int, default=35)
     parser.add_argument('--load_path', type=str, default='')
     # parser.add_argument('--search_mode', type=str, default='macro')
-    parser.add_argument('--max_data', type=int, default=6)
-    parser.add_argument('--max_epoch', type=int, default=10)
+    parser.add_argument('--n_tasks', type=int, default=6)
+    # parser.add_argument('--max_epoch', type=int, default=10)
 
     parser.add_argument('--ema_baseline_decay', type=float, default=0.95)
     parser.add_argument('--discount', type=float, default=1.0)
@@ -60,7 +57,7 @@ def register_default_args(parser):
                         help='The size of the memory buffer.')
     parser.add_argument('--minibatch_size', type=int, default= 128, required=False,
                         help='The mini-batch size of the memory buffer.')
-    parser.add_argument('--batch_size', type=int, default= 1000, required=False,
+    parser.add_argument('--batch_size_nei', type=int, default= 1000, required=False,
                         help='The batch size of the graph neighbour sampling.')
     parser.add_argument('--alpha', type=float, default = 0.5, required=False,
                         help='Penalty weight.')
@@ -68,6 +65,9 @@ def register_default_args(parser):
                         help='Penalty weight.')
 
     # child model
+    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[128, 256])
+    parser.add_argument('--channels_mlp', nargs='+', type=int, default=[200, 300])
+
     parser.add_argument("--dataset", type=str, default="Cora", required=False,
                         help="The input dataset.")
     parser.add_argument("--epochs", type=int, default=300,
@@ -88,13 +88,12 @@ def register_default_args(parser):
                         help="optimizer save path")
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--max_param', type=float, default=5E6)
-    parser.add_argument('--supervised', type=bool, default=False)
     parser.add_argument('--submanager_log_file', type=str, default=f"sub_manager_logger_file_{time.time()}.txt")
-
+    parser.add_argument('--task_override', type=bool, default=False)
 
 def main(args):
 
-    if args.cuda and torch.cuda.is_available():  # cuda is not available
+    if args.cuda and torch.cuda.is_available():  # cuda is  available
         args.cuda = True
         print("Training with cuda...")
     else:
@@ -103,6 +102,19 @@ def main(args):
     # args.max_epoch = 1
     # args.controller_max_step = 1
     # args.derive_num_sample = 1
+
+    # Sanity check
+    if not args.task_override:
+        if args.dataset == "Cora":
+            args.n_tasks = 3
+            
+        elif args.dataset == "Citeseer":
+            args.n_tasks = 3
+            
+        elif args.dataset == "Reddit":
+            args.n_tasks = 8
+
+
     torch.manual_seed(args.random_seed)
     if args.cuda:
         torch.cuda.manual_seed(args.random_seed)
