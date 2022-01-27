@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.nn import GCNConv,GATConv,SGConv
+from torch_geometric.nn import GCNConv,GATConv,SAGEConv
 import torch.nn as nn
 # import torch.nn.functional as F
 
@@ -31,7 +31,7 @@ class GraphLayer(nn.Module):
                 self.gnn.append(GATConv(in_channels = channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], heads = self.heads,bias=bias_gnn,concat=False))
 
             elif self.mp_nn == "sg":
-                self.gnn.append(SGConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias = bias_gnn))
+                self.gnn.append(SAGEConv(in_channels=channels_gnn[channel_no], out_channels=channels_gnn[channel_no+1], bias = bias_gnn))
             
             else:
                 raise Exception("Check GNN type!")
@@ -46,7 +46,15 @@ class GraphLayer(nn.Module):
 
         for channel_no in range(0,len(channels_mlp)-1):
             self.linear.append(nn.Linear(channels_mlp[channel_no],channels_mlp[channel_no+1], bias=bias_mlp))
-            
+        
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for mod in self.gnn:
+            mod.reset_parameters()
+        for mod in self.linear:
+            mod.reset_parameters()
+
     def model_parameters(self, model):
         return model.state_dict()
 
@@ -66,7 +74,7 @@ class GraphLayer(nn.Module):
                 self.gnn.append(GATConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], heads = self.heads, bias=self.bias_gnn, concat=False))
 
             elif self.mp_nn == "sg":
-                self.gnn.append(SGConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn))
+                self.gnn.append(SAGEConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn))
 
 
             with torch.no_grad():
@@ -74,9 +82,12 @@ class GraphLayer(nn.Module):
                     self.gnn[i].lin.weight[0:model_param["lin.weight"].shape[0] , 0:model_param["lin.weight"].shape[1]] = model_param["lin.weight"]
                     if self.bias_gnn:
                         self.gnn[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
-                else:
+                elif self.mp_nn == "gat":
                     raise Exception("Not implemented error")                 #  Implementation needed  
-                        
+                
+                elif self.mp_nn == "sg":
+                    raise Exception("Not implemented error")                 #  Implementation needed  
+                       
     def weight_update_mlp(self, wgt_add):
         assert len(self.linear)-1 == len(wgt_add), "Match number of Linear layers and node additions"
         assert self.channels_mlp[-1] == self.num_class, "MLP output not match class number"
