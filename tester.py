@@ -6,6 +6,8 @@ import numpy as np
 import torch, torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.loader import NeighborLoader
+from tqdm import tqdm
+from utils.score import evaluate
 
 def sample(gnn_len=2, mlp_len=2):
     msearch = MacroSearchSpace()
@@ -69,72 +71,72 @@ def observe(self, data, mode='train'):
         return loss.item(), outputs
 
     
-    def run_model(self, train_nodes, val_nodes):
+def run_model(self, train_nodes, val_nodes):
 
-        self.model.train()
-           
-        dur = []
-        min_val_loss = float("inf")
-        model_val_acc = 0
-        # tqdm.write("Number of train data:", self.data.train_mask.sum())
+    self.model.train()
+        
+    dur = []
+    min_val_loss = float("inf")
+    model_val_acc = 0
+    # tqdm.write("Number of train data:", self.data.train_mask.sum())
 
-        t0 = time.time()
-        epochs = tqdm(range(self.epochs), desc = "Epoch", position=0, colour='green')
+    t0 = time.time()
+    epochs = tqdm(range(self.epochs), desc = "Epoch", position=0, colour='green')
 
-        for epoch in epochs:
-            epochs.set_description(f"Epoch no.: {epoch}")
+    for epoch in epochs:
+        epochs.set_description(f"Epoch no.: {epoch}")
 
-            
-            train_loader = NeighborLoader(
-                    self.data,
-                    # Sample 30 neighbors for each node for 2 iterations
-                    num_neighbors=[30] * 2,
-                    # Use a batch size of 128 for sampling training nodes
-                    batch_size=self.args.batch_size_nei,
-                    input_nodes = train_nodes,
-                    )
-            batch = tqdm(train_loader, desc="Batch", position=1, leave=False, colour='red')
+        
+        train_loader = NeighborLoader(
+                self.data,
+                # Sample 30 neighbors for each node for 2 iterations
+                num_neighbors=[30] * 2,
+                # Use a batch size of 128 for sampling training nodes
+                batch_size=self.args.batch_size_nei,
+                input_nodes = train_nodes,
+                )
+        batch = tqdm(train_loader, desc="Batch", position=1, leave=False, colour='red')
 
-            for batch_i,data_i in enumerate(batch):
-                batch.set_description(f"Batch no.: {batch_i}")
-                data_i = data_i.to(self.device)
-
-                loss, outputs = self.observe(data_i, mode='train')
-            
-            if epoch%50==0 :
-                train_acc = evaluate(outputs, data_i.y[data_i.train_mask])
-                dur.append(time.time() - t0)
-                
-                tqdm.write(
-                    "Epoch {:05d} | Train Loss {:.4f} | Time(s) {:.4f} | Train acc {:.4f}".format(
-                        epoch, loss, np.mean(dur), train_acc))
-                        
-        val_loader = NeighborLoader(
-        self.data,
-        # Sample 30 neighbors for each node for 2 iterations
-        num_neighbors=[30] * 2,
-        # Use a batch size of 128 for sampling training nodes
-        batch_size=self.args.batch_size,
-        input_nodes = val_nodes,
-        )
-
-        tqdm.write(f" Validation ".center(200, "*"),end="\n")
-
-        self.model.eval()
-
-        for batch_i,data_i in enumerate(val_loader):
+        for batch_i,data_i in enumerate(batch):
+            batch.set_description(f"Batch no.: {batch_i}")
             data_i = data_i.to(self.device)
 
-            val_loss, outputs = self.observe(data_i, mode='eval')
-
-            val_acc = evaluate(outputs, data_i.y[data_i.val_mask])
+            loss, outputs = self.observe(data_i, mode='train')
+        
+        if epoch%50==0 :
+            train_acc = evaluate(outputs, data_i.y[data_i.train_mask])
+            dur.append(time.time() - t0)
             
-            tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
-                            val_loss, val_acc))
+            tqdm.write(
+                "Epoch {:05d} | Train Loss {:.4f} | Time(s) {:.4f} | Train acc {:.4f}".format(
+                    epoch, loss, np.mean(dur), train_acc))
+                    
+    val_loader = NeighborLoader(
+    self.data,
+    # Sample 30 neighbors for each node for 2 iterations
+    num_neighbors=[30] * 2,
+    # Use a batch size of 128 for sampling training nodes
+    batch_size=self.args.batch_size,
+    input_nodes = val_nodes,
+    )
 
-            if val_loss < min_val_loss:  # and train_loss < min_train_loss
-                min_val_loss = val_loss
-                model_val_acc = val_acc
+    tqdm.write(f" Validation ".center(200, "*"),end="\n")
 
-            
-        return self.model, model_val_acc
+    self.model.eval()
+
+    for batch_i,data_i in enumerate(val_loader):
+        data_i = data_i.to(self.device)
+
+        val_loss, outputs = self.observe(data_i, mode='eval')
+
+        val_acc = evaluate(outputs, data_i.y[data_i.val_mask])
+        
+        tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
+                        val_loss, val_acc))
+
+        if val_loss < min_val_loss:  # and train_loss < min_train_loss
+            min_val_loss = val_loss
+            model_val_acc = val_acc
+
+        
+    return self.model, model_val_acc
