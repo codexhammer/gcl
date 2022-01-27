@@ -79,7 +79,7 @@ class Trainer(object):
         self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
         self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
         # build RNN controller
-        from graphnas_controller import Controller
+        from graph_controller import Controller
         self.controller = Controller(self.args, 
                                             search_space_gnn = self.search_space_gnn,
                                             search_space_mlp = self.search_space_mlp,
