@@ -42,7 +42,7 @@ class Trainer(object):
     """Manage the training process"""
 
     def __init__(self, args):
-        """
+        r"""
         Constructor for training algorithm.
         Build sub-model manager and controller.
         Build optimizer and cross entropy loss for controller.
@@ -105,7 +105,7 @@ class Trainer(object):
     #     return gnn
 
     def train(self):
-        """
+        r"""
         Each epoch consists of two phase:
         - In the first phase, shared parameters are trained to exploration.
         - In the second phase, the controller's parameters are trained.
@@ -113,7 +113,7 @@ class Trainer(object):
         # 2. Training the controller parameters theta
         for task_no in tqdm(range(self.n_tasks)):
             
-            tqdm.write(f" Training Task number {task_no} ".center(24, "*"),end="\n")
+            tqdm.write(f" Training Task number {task_no} ".center(200, "*"),end="\n\n\n")
             
             self.train_gnn.task_increment()
 
@@ -121,11 +121,13 @@ class Trainer(object):
                 self.train_init()
             else:                
                 self.train_controller()
+
             # 3. Derive architectures
             # self.derive(sample_num=self.args.derive_num_sample)   # Need to be changed here!
 
             # if self.epoch % self.args.save_epoch == 0:
             #     self.save_model()
+        print(f'\n\n All tasks completed successfully!')
 
         # if self.args.derive_finally:
         #     best_actions = self.derive()
@@ -137,23 +139,15 @@ class Trainer(object):
             Train first task withput controller.
         """
 
-        try:
-            _, val_score = self.train_gnn.train()
-            logger.info(f"val_score:{val_score}")
-        except RuntimeError as e:
-            if 'CUDA' in str(e):  # usually CUDA Out of Memory
-                print(e)
-            else:
-                raise e
-
-        print("*" * 35, "1st task training over", "*" * 35)
+        _, val_score = self.train_gnn.train()
+        # logger.info(f"val_score:{val_score}")
 
 
     def train_controller(self):
-        """
+        r"""
             Train controller for subsequent tasks.
         """
-        print("*" * 35, "training controller", "*" * 35)
+        tqdm.write(f" Training controller ".center(200,'*'))
         model = self.controller
         model.train()
 
@@ -164,7 +158,10 @@ class Trainer(object):
 
         hidden = self.controller.init_hidden(self.args.batch_size)
         total_loss = 0
-        for _ in range(self.args.controller_max_step):
+
+        controller_tqdm = tqdm(range(self.args.controller_max_step), colour='yellow')
+        for _ in controller_tqdm:
+            controller_tqdm.set_description(f" Controller step ")
             structure_list, log_probs, entropies = self.controller.sample(with_details=True)
 
             # calculate reward
@@ -269,7 +266,7 @@ class Trainer(object):
         logger.info(f'eval | {gnn} | reward: {reward:8.2f} | scores: {scores:8.2f}')
 
     def derive_from_history(self):
-        with open(self.args.dataset + "_"  + self.args.submanager_log_file, "a") as f:
+        with open(self.args.dataset + "_"  + self.args.logger_file, "a") as f:
             lines = f.readlines()
 
         results = []

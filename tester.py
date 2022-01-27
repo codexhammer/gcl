@@ -5,41 +5,7 @@ from gnn_layer import GraphLayer
 import numpy as np
 import torch, torch.nn as nn
 import torch.nn.functional as F
-import torch_geometric.transforms as T
-from torch_geometric.datasets import Planetoid, Coauthor, Amazon
-
-def load_data(dataset="Cora", supervised=False, full_data=True):
-    '''
-    support semi-supervised and supervised
-    :param dataset:
-    :param supervised:
-    :return:
-    '''
-    path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
-    if dataset in ["Cora", "Citeseer", "Pubmed"]:
-        dataset = Planetoid(path, dataset, transform=T.NormalizeFeatures())
-    data = dataset[0]
-    if supervised:
-        if full_data:
-            data.train_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
-            data.train_mask[:-1000] = 1
-            data.val_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
-            data.val_mask[data.num_nodes - 1000: data.num_nodes - 500] = 1
-            data.test_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
-            data.test_mask[data.num_nodes - 500:] = 1
-        else:
-            data.train_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
-            data.train_mask[:1000] = 1
-            data.val_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
-            data.val_mask[data.num_nodes - 1000: data.num_nodes - 500] = 1
-            data.test_mask = torch.zeros(data.num_nodes, dtype=torch.uint8)
-            data.test_mask[data.num_nodes - 500:] = 1
-    return dataset, data
-
-def evaluate(output, labels, mask):
-    _, indices = torch.max(output, dim=1)
-    correct = torch.sum(indices[mask] == labels[mask])
-    return correct.item() * 1.0 / mask.sum().item()
+from torch_geometric.loader import NeighborLoader
 
 def sample(gnn_len=2, mlp_len=2):
     msearch = MacroSearchSpace()
@@ -60,63 +26,115 @@ def sample(gnn_len=2, mlp_len=2):
     return action_gnn, action_mlp
         
 
-def run_model():
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    channels_gnn = [32, 48]
-    channels_mlp = [30, 40]
-    action_gnn, action_mlp = sample()
-    epochs = 200
-    dataset, data = load_data()
-    data = data.to(device)
-    channels_gnn.insert(0,dataset.num_node_features)
+def observe(self, data, mode='train'):
 
-    model = GraphLayer(channels_gnn,channels_mlp, num_class=dataset.num_classes).to(device)
+        conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)
+        logits = self.model(data.x, data.edge_index)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    loss_fn = nn.NLLLoss()
-    dur = []
-    begin_time = time.time()
-    best_performance = 0
-    min_val_loss = float("inf")
-    model_val_acc = 0
-    print("Number of train datas:", data.train_mask.sum())
-    for epoch in range(1, epochs+1):
-        model.train()
-        optimizer.zero_grad()
+        if mode=='train':
+
+            self.optimizer.zero_grad()
+            data.train_mask =  data.train_mask * conditions
+            logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
+            outputs = F.log_softmax(logits, 1)
+            # loss = self.loss(outputs[data.train_mask], data.y[data.train_mask])
+            loss = self.loss(outputs, data.y[data.train_mask]-self.current_task*self.class_per_task) # Scale the labels from [2,3] -> [0,1]
+
+            if not self.buffer.is_empty() and self.current_task:
+                
+                buf_data, buf_logits, task_no = self.buffer.get_data(
+                    self.args.minibatch_size, transform=None)
+                buf_outputs = self.model(buf_data.x, buf_data.edge_index)
+                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
+
+                buf_data, buf_logits, task_no = self.buffer.get_data(
+                    self.args.minibatch_size, transform=None)
+                buf_outputs = self.model(buf_data.x, buf_data.edge_index)
+                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                buf_outputs = F.log_softmax(buf_outputs, 1)
+                loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
+
+            self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
+                             
+            loss.backward(retain_graph=True) # Class labels larger than n_class issue! https://github.com/pytorch/pytorch/issues/1204#issuecomment-366489299
+            self.optimizer.step()
+        
+        else:
+            data.val_mask = data.val_mask * conditions
+            logits = logits[data.val_mask][:,self.classes_in_task[self.current_task]]
+            outputs = F.log_softmax(logits, 1)
+            loss = self.loss(outputs, data.y[data.val_mask]-self.current_task*self.class_per_task)
+
+        return loss.item(), outputs
+
+    
+    def run_model(self, train_nodes, val_nodes):
+
+        self.model.train()
+           
+        dur = []
+        min_val_loss = float("inf")
+        model_val_acc = 0
+        # tqdm.write("Number of train data:", self.data.train_mask.sum())
+
         t0 = time.time()
-        # forward
-        logits = model(data.x, data.edge_index)
-        logits = F.log_softmax(logits, 1)
-        loss = loss_fn(logits[data.train_mask], data.y[data.train_mask])
-        loss.backward()
-        optimizer.step()
-        train_loss = loss.item()
+        epochs = tqdm(range(self.epochs), desc = "Epoch", position=0, colour='green')
 
-        # evaluate
-        model.eval()
-        logits = model(data.x, data.edge_index)
-        logits = F.log_softmax(logits, 1)
-        train_acc = evaluate(logits, data.y, data.train_mask)
-        dur.append(time.time() - t0)
+        for epoch in epochs:
+            epochs.set_description(f"Epoch no.: {epoch}")
 
-        val_acc = evaluate(logits, data.y, data.val_mask)
-        test_acc = evaluate(logits, data.y, data.test_mask)
+            
+            train_loader = NeighborLoader(
+                    self.data,
+                    # Sample 30 neighbors for each node for 2 iterations
+                    num_neighbors=[30] * 2,
+                    # Use a batch size of 128 for sampling training nodes
+                    batch_size=self.args.batch_size_nei,
+                    input_nodes = train_nodes,
+                    )
+            batch = tqdm(train_loader, desc="Batch", position=1, leave=False, colour='red')
 
-        loss = loss_fn(logits[data.val_mask], data.y[data.val_mask])
-        val_loss = loss.item()
-        if val_loss < min_val_loss:  # and train_loss < min_train_loss
-            min_val_loss = val_loss
-            model_val_acc = val_acc
-            if test_acc > best_performance:
-                best_performance = test_acc
-        if epoch%10==0:
-            print(
-                "Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
-                    epoch, loss.item(), np.mean(dur), train_acc, val_acc, test_acc))
+            for batch_i,data_i in enumerate(batch):
+                batch.set_description(f"Batch no.: {batch_i}")
+                data_i = data_i.to(self.device)
 
-            end_time = time.time()
-            print("Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
-    print(f"val_score:{model_val_acc},test_score:{best_performance}")
-    model.weight_update(action_gnn, action_mlp)
+                loss, outputs = self.observe(data_i, mode='train')
+            
+            if epoch%50==0 :
+                train_acc = evaluate(outputs, data_i.y[data_i.train_mask])
+                dur.append(time.time() - t0)
+                
+                tqdm.write(
+                    "Epoch {:05d} | Train Loss {:.4f} | Time(s) {:.4f} | Train acc {:.4f}".format(
+                        epoch, loss, np.mean(dur), train_acc))
+                        
+        val_loader = NeighborLoader(
+        self.data,
+        # Sample 30 neighbors for each node for 2 iterations
+        num_neighbors=[30] * 2,
+        # Use a batch size of 128 for sampling training nodes
+        batch_size=self.args.batch_size,
+        input_nodes = val_nodes,
+        )
 
-run_model()
+        tqdm.write(f" Validation ".center(200, "*"),end="\n")
+
+        self.model.eval()
+
+        for batch_i,data_i in enumerate(val_loader):
+            data_i = data_i.to(self.device)
+
+            val_loss, outputs = self.observe(data_i, mode='eval')
+
+            val_acc = evaluate(outputs, data_i.y[data_i.val_mask])
+            
+            tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
+                            val_loss, val_acc))
+
+            if val_loss < min_val_loss:  # and train_loss < min_train_loss
+                min_val_loss = val_loss
+                model_val_acc = val_acc
+
+            
+        return self.model, model_val_acc

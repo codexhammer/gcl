@@ -2,7 +2,6 @@
 
 import argparse
 import time
-import random
 import torch
 
 import trainer as trainer
@@ -53,7 +52,7 @@ def register_default_args(parser):
     parser.add_argument('--derive_from_history', type=bool, default=True)
     
     #buffer
-    parser.add_argument('--buffer_size', type=int, default= 5120, required=False, 
+    parser.add_argument('--buffer_size', type=int, default= 6000, required=False, 
                         help='The size of the memory buffer.')
     parser.add_argument('--minibatch_size', type=int, default= 128, required=False,
                         help='The mini-batch size of the memory buffer.')
@@ -88,7 +87,7 @@ def register_default_args(parser):
                         help="optimizer save path")
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--max_param', type=float, default=5E6)
-    parser.add_argument('--submanager_log_file', type=str, default=f"sub_manager_logger_file_{time.time()}.txt")
+    parser.add_argument('--logger_file', type=str, default=f"logger_file_{time.time()}.txt")
     parser.add_argument('--task_override', type=bool, default=False)
 
 def main(args):
@@ -99,8 +98,8 @@ def main(args):
     else:
         args.cuda = False
         print("Training with cpu...")
-    # args.max_epoch = 1
-    # args.controller_max_step = 1
+    # args.epochs = 3
+    args.controller_max_step = 2
     # args.derive_num_sample = 1
 
     # Sanity check

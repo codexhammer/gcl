@@ -1,5 +1,3 @@
-import torch
-
 
 class MacroSearchSpace():
     def __init__(self):
