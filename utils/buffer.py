@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 from torchvision import transforms
 
@@ -21,7 +20,7 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
 
 
 class Buffer:
-    def __init__(self, buffer_size=5120, device = "cuda", mode = 'reservoir'):
+    def __init__(self, buffer_size=6000, device = "cuda"):
         self.buffer_size = buffer_size
         self.device = device
         self.num_seen_examples = 0
