@@ -4,22 +4,18 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_geometric.transforms as T
-from torch_geometric.datasets import Planetoid, Coauthor, Amazon
 from torch_geometric.loader import NeighborLoader
+
 from utils.buffer import Buffer
+from utils.load_data import DataLoader
+from utils.model_utils import EarlyStop, TopAverage, process_action
+from utils.score import evaluate, f1_score_calc
+
 from search_space import MacroSearchSpace
 import copy
-from utils.model_utils import EarlyStop, TopAverage, process_action
 from gnn_layer import GraphLayer
-from load_data import DataLoader
 from tqdm import tqdm
 
-
-def evaluate(output, labels):
-    _, indices = torch.max(output, dim=1)
-    correct = torch.sum(indices == labels)
-    return correct.item() * 1.0 / len(labels)
 
 class Training():
     def __init__(self, args, mp_nn="gcn",
@@ -38,6 +34,7 @@ class Training():
         self.num_feat =  self.data.num_features
         self.num_class = self.data_load.n_class
         self.classes_in_task = self.data_load.classes_in_task
+        self.class_per_task = len(self.classes_in_task[0])
 
 
         self.early_stop_manager = EarlyStop(10)
@@ -62,6 +59,7 @@ class Training():
         self.n_tasks = args.n_tasks
 
         self.channels_gnn.insert(0,self.num_feat)
+        self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
 
         self.model = self.build_gnn(self.channels_gnn, self.channels_mlp, self.num_class, self.heads, self.mp_nn, self.dropout)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
@@ -69,6 +67,10 @@ class Training():
         self.model.to(self.device)
 
         self.args = args
+    
+    def build_gnn(self, channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout):
+        model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout)
+        return model
     
     def task_increment(self):
         self.current_task, (self.train_task_nid, self.val_task_nid) = next(self.task_iter)
@@ -92,6 +94,7 @@ class Training():
             self.actions_mlp = list(map(lambda x,y:x-y,actions_mlp[::2],actions_mlp[1::2]))
             self.evaluate_actions(actions_gnn, actions_mlp, state_num_gnn=1, state_num_mlp=2)
             self.model.weight_update(self.actions_gnn,self.actions_mlp)
+            self.model.to(self.device)
             print('**')
         else:
             return
@@ -100,16 +103,17 @@ class Training():
         print("train action:", actions)
 
         # create model
-        try:
-            self.model, val_acc, test_acc = self.run_model()
-        except RuntimeError as e:
-            if "cuda" in str(e) or "CUDA" in str(e):
-                print(e)
-                val_acc = 0
-                test_acc = 0
-            else:
-                raise e
+        # try:
+        self.model, val_acc, test_acc = self.run_model()
+        # except RuntimeError as e:
+        #     if "cuda" in str(e) or "CUDA" in str(e):
+        #         print(e)
+        #         val_acc = 0
+        #         test_acc = 0
+        #     else:
+        #         raise e
         return val_acc, test_acc
+
     
     def train(self, actions=None):
 
@@ -117,111 +121,103 @@ class Training():
         origin_action = actions  # Add recorder
         print("train action:", actions)
 
-        try:
-            print("Model = ",self.model)
-            self.model, val_acc = self.run_model(train_nodes = self.train_task_nid, val_nodes = self.val_task_nid)
+        # try:
+        print("Model = ",self.model)
+        self.model, val_acc = self.run_model(train_nodes = self.train_task_nid, val_nodes = self.val_task_nid)
 
-            tqdm.write(f"Testing Task number {self.current_task} ".center(24, "*"),end="\n")
+        tqdm.write(f" Testing Task number {self.current_task} ".center(200, "*"),end="\n")
 
-            # Train 
 
-            for test_i in range(self.current_task):
-                test_mask_info, classes_in_task = self.data_load.test_nodes(test_i)
-                self.test_model(self.model, test_mask_info, classes_in_task)
+        for task_i in range(self.current_task+1):
+            _, test_mask = self.data_load.test_nodes(task_i)
+            self.test_model(copy.deepcopy(self.data), test_mask, task_i)
 
-        except RuntimeError as e:
-            if "cuda" in str(e) or "CUDA" in str(e):
-                print(e)
-                val_acc = 0
-            else:
-                raise e
+        # except RuntimeError as e:
+        #     if "cuda" in str(e) or "CUDA" in str(e):
+        #         print(e)
+        #         val_acc = 0
+        #     else:
+        #         raise e
+        
         reward = self.reward_manager.get_reward(val_acc)
         # self.save_param(self.model, update_all=(reward > 0))
-
         # self.record_action_info(origin_action, reward, val_acc)
 
         return reward, val_acc
+
     
-    def test_model(self, model, test_mask_info, classes_in_task):
-        model.eval() 
-        outputs = self.model(self.data.x, self.data.edge_index)
+    def test_model(self, data, test_mask, task_i):
+        self.model.eval()
+        data = data.to(self.device)
+
+        outputs = self.model(data.x, data.edge_index)
+        outputs = outputs[test_mask][:,self.classes_in_task[task_i]]
         outputs = F.log_softmax(outputs, 1)
-        outputs , labels = outputs[self.data.test_mask], self.data.y[self.data.test_mask]
-        outputs, labels = outputs[test_mask_info]
+        labels = data.y[test_mask]
 
-        val_acc = evaluate(outputs, labels)
-        print("val_acc {:.4f} ".format(val_acc))
+        acc = f1_score_calc(outputs, labels)
+        self.acc_matrix[self.current_task][task_i] = np.round(acc*100,2)
+        tqdm.write("Test accuracy {:.4f} ".format(acc))
 
-        
-    # def record_action_info(self, origin_action, reward, val_acc):
-    #     with open(self.args.dataset + "_" + self.args.submanager_log_file, "a") as file:
-    #         # with open(f'{self.args.dataset}_{self.args.search_mode}_{self.args.format}_manager_result.txt', "a") as file:
-    #         file.write(str(origin_action))
 
-    #         file.write(";")
-    #         file.write(str(reward))
+    def observe(self, data, mode='train'):
 
-    #         file.write(";")
-    #         file.write(str(val_acc))
-    #         file.write("\n")
-    
-
-    def build_gnn(self, channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout):
-        model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout)
-        return model
-    
-    def observe(self, data):
-
-        self.optimizer.zero_grad()        
-        conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)    
-        data.train_mask =  data.train_mask * conditions
-
+        conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)
         logits = self.model(data.x, data.edge_index)
 
-        logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
-        outputs = F.log_softmax(logits, 1)
-        # loss = self.loss(outputs[data.train_mask], data.y[data.train_mask])
-        loss = self.loss(logits, data.y[data.train_mask])
+        if mode=='train':
 
-        if not self.buffer.is_empty() and self.current_task:
-            
-            buf_data, buf_logits, task_no = self.buffer.get_data(
-                self.args.minibatch_size, transform=None)
+            self.optimizer.zero_grad()
+            data.train_mask =  data.train_mask * conditions
+            logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
+            outputs = F.log_softmax(logits, 1)
+            # loss = self.loss(outputs[data.train_mask], data.y[data.train_mask])
+            loss = self.loss(outputs, data.y[data.train_mask]-self.current_task*self.class_per_task) # Scale the labels from [2,3] -> [0,1]
 
-            buf_outputs = self.model(buf_data.x, buf_data.edge_index)
-            buf_outputs = logits[buf_data.train_mask][:,self.classes_in_task[task_no]]
-            loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
+            if not self.buffer.is_empty() and self.current_task:
+                
+                buf_data, buf_logits, task_no = self.buffer.get_data(
+                    self.args.minibatch_size, transform=None)
+                buf_outputs = self.model(buf_data.x, buf_data.edge_index)
+                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
 
-            # buf_inputs, buf_labels, _ = self.buffer.get_data(
-                # self.args.minibatch_size, transform=None)
-            # buf_outputs = self.model(buf_inputs)
-            loss += self.args.beta * self.loss(buf_outputs, buf_data.y[data.train_mask])
+                buf_data, buf_logits, task_no = self.buffer.get_data(
+                    self.args.minibatch_size, transform=None)
+                buf_outputs = self.model(buf_data.x, buf_data.edge_index)
+                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                buf_outputs = F.log_softmax(buf_outputs, 1)
+                loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
 
-        self.buffer.add_data(data, logits=logits.data, task_no = self.current_task, device=self.device)
+            self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
                              
-        loss.backward(retain_graph=True) # Class labels larger than n_class issue! https://github.com/pytorch/pytorch/issues/1204#issuecomment-366489299
-        self.optimizer.step()
-
+            loss.backward(retain_graph=True) # Class labels larger than n_class issue! https://github.com/pytorch/pytorch/issues/1204#issuecomment-366489299
+            self.optimizer.step()
+        
+        else:
+            data.val_mask = data.val_mask * conditions
+            logits = logits[data.val_mask][:,self.classes_in_task[self.current_task]]
+            outputs = F.log_softmax(logits, 1)
+            loss = self.loss(outputs, data.y[data.val_mask]-self.current_task*self.class_per_task)
 
         return loss.item(), outputs
 
     
     def run_model(self, train_nodes, val_nodes):
+
+        self.model.train()
            
         dur = []
-        begin_time = time.time()
-        best_performance = 0
         min_val_loss = float("inf")
         model_val_acc = 0
         # tqdm.write("Number of train data:", self.data.train_mask.sum())
 
-        epochs = tqdm(range(self.epochs), desc = "Epoch", position=0)
+        t0 = time.time()
+        epochs = tqdm(range(self.epochs), desc = "Epoch", position=0, colour='green')
 
         for epoch in epochs:
             epochs.set_description(f"Epoch no.: {epoch}")
 
-            self.model.train()
-            t0 = time.time()
             
             train_loader = NeighborLoader(
                     self.data,
@@ -231,19 +227,21 @@ class Training():
                     batch_size=self.args.batch_size_nei,
                     input_nodes = train_nodes,
                     )
-            batch = tqdm(train_loader, desc="Batch", position=1, leave=False)
+            batch = tqdm(train_loader, desc="Batch", position=1, leave=False, colour='red')
 
             for batch_i,data_i in enumerate(batch):
                 batch.set_description(f"Batch no.: {batch_i}")
                 data_i = data_i.to(self.device)
 
-                loss, outputs = self.observe(data_i)
+                loss, outputs = self.observe(data_i, mode='train')
             
-            # if epoch%50==0 :
-            #     train_acc = evaluate(outputs, self.data.y)                
-            #     tqdm.write(
-            #         "Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} | test_acc {:.4f}".format(
-            #             epoch, loss.item(), np.mean(dur), train_acc))
+            if epoch%50==0 :
+                train_acc = evaluate(outputs, data_i.y[data_i.train_mask])
+                dur.append(time.time() - t0)
+                
+                tqdm.write(
+                    "Epoch {:05d} | Train Loss {:.4f} | Time(s) {:.4f} | Train acc {:.4f}".format(
+                        epoch, loss, np.mean(dur), train_acc))
                         
         val_loader = NeighborLoader(
         self.data,
@@ -254,27 +252,37 @@ class Training():
         input_nodes = val_nodes,
         )
 
+        tqdm.write(f" Validation ".center(200, "*"),end="\n")
+
+        self.model.eval()
+
         for batch_i,data_i in enumerate(val_loader):
             data_i = data_i.to(self.device)
 
-            self.model.eval()
-            logits = self.model(data_i.x, data_i.edge_index)
-            logits = F.log_softmax(logits, 1)
-            dur.append(time.time() - t0)
+            val_loss, outputs = self.observe(data_i, mode='eval')
 
-            val_acc = evaluate(logits, data_i.y)
-            print("Epoch {:05d} | Loss {:.4f} | Time(s) {:.4f} | acc {:.4f} | val_acc {:.4f} ".format(
-                            epoch, loss.item(), np.mean(dur), val_acc))
+            val_acc = evaluate(outputs, data_i.y[data_i.val_mask])
+            
+            tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
+                            val_loss, val_acc))
 
-            loss = self.loss(logits, data_i.y)
-            val_loss = loss.item()
             if val_loss < min_val_loss:  # and train_loss < min_train_loss
                 min_val_loss = val_loss
                 model_val_acc = val_acc
 
-
-            end_time = time.time()
-            print("Each Epoch Cost Time: %f " % ((end_time - begin_time) / epoch))
-            print(f"val_score:{model_val_acc},test_score:{best_performance}")
             
         return self.model, model_val_acc
+
+        
+    # def record_action_info(self, origin_action, reward, val_acc):
+    #     with open(self.args.dataset + "_" + self.args.logger_file, "a") as file:
+    #         # with open(f'{self.args.dataset}_{self.args.search_mode}_{self.args.format}_manager_result.txt', "a") as file:
+    #         file.write(str(origin_action))
+
+    #         file.write(";")
+    #         file.write(str(reward))
+
+    #         file.write(";")
+    #         file.write(str(val_acc))
+    #         file.write("\n")
+    
