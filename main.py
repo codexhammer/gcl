@@ -99,7 +99,7 @@ def main(args):
         args.cuda = False
         print("Training with cpu...")
     # args.epochs = 3
-    args.controller_max_step = 2
+    # args.controller_max_step = 2
     # args.derive_num_sample = 1
 
     # Sanity check
