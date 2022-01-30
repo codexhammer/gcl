@@ -35,7 +35,7 @@ class DataLoader():
 
         n_class_per_task = self.n_class // self.n_tasks
 
-        assert n_class_per_task > 1, "Reduce the number of tasks in the args: n_tasks"
+        assert n_class_per_task >= 1, "Reduce the number of tasks in the args: n_tasks"
 
         for task_i in range(self.n_tasks):
             self.classes_in_task[task_i] = list(range( task_i * n_class_per_task, (task_i+1) * n_class_per_task ))
