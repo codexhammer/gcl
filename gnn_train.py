@@ -122,7 +122,8 @@ class Training():
         print("train action:", actions)
 
         # try:
-        print("Model = ",self.model)
+        print("Model = ",self.model,end='\n')
+        print(f'Classes in current task: {self.classes_in_task}\n\n')
         self.model, val_acc = self.run_model(train_nodes = self.train_task_nid, val_nodes = self.val_task_nid)
 
         tqdm.write(f" Testing Task number {self.current_task} ".center(200, "*"),end="\n")
