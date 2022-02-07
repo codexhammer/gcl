@@ -247,7 +247,7 @@ class Training():
         num_neighbors=[30] * 2,
         # Use a batch size of 128 for sampling training nodes
         batch_size=self.args.batch_size,
-        input_nodes = val_nodes,
+        input_nodes = self.val_task_nid,
         )
 
         tqdm.write(f" Validation ".center(200, "*"),end="\n")
