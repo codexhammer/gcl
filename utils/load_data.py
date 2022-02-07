@@ -1,12 +1,13 @@
 import torch
-from torch_geometric.datasets import Planetoid, Coauthor, Amazon, Reddit
+from torch_geometric.datasets import Planetoid, Coauthor, Amazon, Reddit, TUDataset
 import torch_geometric.transforms as T
 import os.path as osp
 import numpy as np
 
+from torch_geometric.data import Data
 
 class DataLoader():
-    def __init__(self, args):
+    def __init__(self, args=None):
         dataset = args.dataset
 
         path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
@@ -18,19 +19,32 @@ class DataLoader():
             dataset = Planetoid(path, dataset, transform=T.NormalizeFeatures())
         elif dataset=='Reddit':
             dataset = Reddit(path, transform=T.NormalizeFeatures())
+
         self.data = dataset[0]
+
+
+        # n=30
+        # e=40
+        # f=3
+        # c=12
+        # self.data = Data(x= torch.randn((n,f)),edge_index= torch.randint(0,n,(2,e)), 
+        #                 y= torch.randint(low=0, high = c,size=(n,)), train_mask = torch.randint(high=2, size=(n,)).bool(), 
+        #                 val_mask=torch.randint(high=2, size=(n,)).bool(), test_mask = torch.randint(high=2, size=(n,)).bool())
+
 
         print(f"Nodes: {self.data.num_nodes}")
         print(f"Edges: {self.data.num_edges}")
         print(f"Features = {dataset.num_node_features}")
         print(f"Classes = {dataset.num_classes}")
+        
 
         self.n_class = dataset.num_classes
+        # self.n_class = c
+        
         self.classes_in_task = {}
 
-        # self.n_tasks = 3
+        # self.n_tasks = 4
         self.n_tasks = args.n_tasks
-        self.args = args
         self.current_task = 0
 
         n_class_per_task = self.n_class // self.n_tasks
@@ -45,9 +59,6 @@ class DataLoader():
     
     def load_data(self):
         return self.data
-
-    def get_label_offset(self, task_i):
-        return task_i * self.n_labels_per_task, (task_i + 1) * self.n_labels_per_task 
 
     def __iter__(self):
         return self

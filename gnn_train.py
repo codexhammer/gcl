@@ -1,4 +1,3 @@
-import os.path as osp
 import time
 import numpy as np
 import torch
@@ -18,57 +17,48 @@ from tqdm import tqdm
 
 
 class Training():
-    def __init__(self, args, mp_nn="gcn",
-                 batch_normal=True, residual=False):
+    def __init__(self, args):
 
         
         self.device = torch.device('cuda' if args.cuda else 'cpu')
         
-        self.task_no = 0
         print("Dataset = ",args.dataset)
         self.data_load = DataLoader(args)
         self.data = self.data_load.load_data()
         
         self.task_iter = iter(self.data_load)
 
-        self.num_feat =  self.data.num_features
-        self.num_class = self.data_load.n_class
+        num_feat =  self.data.num_features
+        num_class = self.data_load.n_class
         self.classes_in_task = self.data_load.classes_in_task
         self.class_per_task = len(self.classes_in_task[0])
 
 
         self.early_stop_manager = EarlyStop(10)
         self.reward_manager = TopAverage(10)
-        self.lr = args.lr
-        self.weight_decay = args.weight_decay
         self.epochs = args.epochs
-        self.mp_nn = mp_nn
 
         self.loss = nn.CrossEntropyLoss()
+
         self.buffer = Buffer(args.buffer_size, self.device)
         self.alpha = args.alpha
         self.beta = args.beta
 
         # Copied from pyg_gnn
-        self.channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
-        self.channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
-        self.dropout = args.in_drop
-        self.residual = residual
-        self.batch_normal = batch_normal
-        self.heads = args.heads
-        self.n_tasks = args.n_tasks
+        channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
+        channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
 
-        self.channels_gnn.insert(0,self.num_feat)
+        channels_gnn.insert(0,num_feat)
         self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
 
-        self.model = self.build_gnn(self.channels_gnn, self.channels_mlp, self.num_class, self.heads, self.mp_nn, self.dropout)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        self.model = self.build_gnn(channels_gnn, channels_mlp, num_class, args.heads, args.mp_nn, args.in_drop).to(self.device)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-        self.model.to(self.device)
+        self.mc = copy.deepcopy(self.model)
 
         self.args = args
     
-    def build_gnn(self, channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout):
+    def build_gnn(self, channels_gnn, channels_mlp, num_class, heads=1, mp_nn='gcn', dropout=0.5):
         model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout)
         return model
     
@@ -123,8 +113,8 @@ class Training():
 
         # try:
         print("Model = ",self.model,end='\n')
-        print(f'Classes in current task: {self.classes_in_task}\n\n')
-        self.model, val_acc = self.run_model(train_nodes = self.train_task_nid, val_nodes = self.val_task_nid)
+        print(f'Classes in current task: {self.classes_in_task[self.current_task]}\n\n')
+        self.model, val_acc = self.run_model()
 
         tqdm.write(f" Testing Task number {self.current_task} ".center(200, "*"),end="\n")
 
@@ -160,6 +150,13 @@ class Training():
         self.acc_matrix[self.current_task][task_i] = np.round(acc*100,2)
         tqdm.write("Test accuracy {:.4f} ".format(acc))
 
+    def equal_(self):
+        for (n,p),(_,pc) in zip(self.model.named_parameters(),self.mc.named_parameters()):
+            # print(i,n,p.grad,sep='\t')
+            if not torch.all(p.eq(pc)).data:
+                print(n,"\n", p.eq(pc),sep='\t')
+            else:
+                return True
 
     def observe(self, data, mode='train'):
 
@@ -204,7 +201,7 @@ class Training():
         return loss.item(), outputs
 
     
-    def run_model(self, train_nodes, val_nodes):
+    def run_model(self):
 
         self.model.train()
            
@@ -226,7 +223,7 @@ class Training():
                     num_neighbors=[30] * 2,
                     # Use a batch size of 128 for sampling training nodes
                     batch_size=self.args.batch_size_nei,
-                    input_nodes = train_nodes,
+                    input_nodes = self.train_task_nid,
                     )
             batch = tqdm(train_loader, desc="Batch", position=1, leave=False, colour='red')
 

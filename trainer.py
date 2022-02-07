@@ -9,6 +9,8 @@ import utils.tensor_utils as utils
 from gnn_train import Training
 from tqdm import tqdm
 
+from gnn_test import Testing
+
 logger = utils.get_logger()
 
 
@@ -87,7 +89,15 @@ class Trainer(object):
                                             action_list_mlp = self.action_list_mlp,                                                   
                                             cuda=self.args.cuda)
 
-        self.train_gnn = Training(self.args) ### Changed
+        # self.train_gnn = Training(self.args) ### Changed
+
+
+
+
+        self.train_gnn = Testing(self.args) ### Changed
+
+
+
 
         if self.cuda:
             self.controller.cuda()
@@ -117,10 +127,10 @@ class Trainer(object):
             
             self.train_gnn.task_increment()
 
-            if task_no == 0:
-                self.train_init()
-            else:                
-                self.train_controller()
+            # if task_no == 0:
+            self.train_init()
+            # else:                
+            #     self.train_controller()
 
             # 3. Derive architectures
             # self.derive(sample_num=self.args.derive_num_sample)   # Need to be changed here!
@@ -139,7 +149,8 @@ class Trainer(object):
             Train first task withput controller.
         """
 
-        _, val_score = self.train_gnn.train()
+        # _, val_score = self.train_gnn.train()
+        self.train_gnn.train()
         # logger.info(f"val_score:{val_score}")
 
 

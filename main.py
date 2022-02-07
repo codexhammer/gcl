@@ -25,17 +25,14 @@ def register_default_args(parser):
                         help="run in cuda mode")
     parser.add_argument('--max_save_num', type=int, default=5)
 
-    # controller
+    # Controller
 
-    parser.add_argument('--shared_initial_step', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--entropy_mode', type=str, default='reward', choices=['reward', 'regularizer'])
     parser.add_argument('--entropy_coeff', type=float, default=1e-4)
     parser.add_argument('--shared_rnn_max_length', type=int, default=35)
     parser.add_argument('--load_path', type=str, default='')
-    # parser.add_argument('--search_mode', type=str, default='macro')
-    parser.add_argument('--n_tasks', type=int, default=6)
-    # parser.add_argument('--max_epoch', type=int, default=10)
+    parser.add_argument('--n_tasks', type=int, default=4)
 
     parser.add_argument('--ema_baseline_decay', type=float, default=0.95)
     parser.add_argument('--discount', type=float, default=1.0)
@@ -64,8 +61,10 @@ def register_default_args(parser):
                         help='Penalty weight.')
 
     # child model
-    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[128, 256])
-    parser.add_argument('--channels_mlp', nargs='+', type=int, default=[200, 300])
+    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[4,5])
+    parser.add_argument('--channels_mlp', nargs='+', type=int, default=[5,6])
+    parser.add_argument('--mp_nn', type=str, default='gcn', choices=['gcn', 'gat', 'sg'])
+
 
     parser.add_argument("--dataset", type=str, default="Cora", required=False,
                         help="The input dataset.")
@@ -73,10 +72,6 @@ def register_default_args(parser):
                         help="number of training epochs")
     parser.add_argument("--heads", type=int, default=1,
                         help="number of heads")
-    parser.add_argument("--multi_label", type=bool, default=False,
-                        help="multi_label or single_label task")
-    parser.add_argument("--residual", action="store_false",
-                        help="use residual connection")
     parser.add_argument("--in_drop", type=float, default=0.6,
                         help="input feature dropout")
     parser.add_argument("--lr", type=float, default=0.005,
@@ -98,27 +93,30 @@ def main(args):
     else:
         args.cuda = False
         print("Training with cpu...")
-    # args.epochs = 3
-    # args.controller_max_step = 2
+    args.epochs = 10
+    args.controller_max_step = 2
     # args.derive_num_sample = 1
 
     # Sanity check
     if not args.task_override:
         if args.dataset == "Cora":
-            args.n_tasks = 3
+            args.n_tasks = 2
             
         elif args.dataset == "Citeseer":
             args.n_tasks = 3
             
         elif args.dataset == "Reddit":
             args.n_tasks = 8
+        
+        elif args.dataset == 'ENZYMES':
+            args.n_tasks = 3
 
 
     torch.manual_seed(args.random_seed)
     if args.cuda:
         torch.cuda.manual_seed(args.random_seed)
 
-    utils.makedirs(args.dataset)
+    # utils.makedirs(args.dataset)
 
     trnr = trainer.Trainer(args)
 

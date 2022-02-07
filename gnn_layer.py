@@ -119,6 +119,14 @@ class GraphLayer(nn.Module):
             x = nn.LeakyReLU()(x)
         return x
 
+
+# def equal_(self):
+#     for (n,p),(_,pc) in zip(self.model.named_parameters(),self.mc.named_parameters()):
+#         # print(i,n,p.grad,sep='\t')
+#         if not torch.all(p.eq(pc)).data:
+#             print(n,"\n", p.eq(pc),sep='\t')
+#         else:
+#             return True
 # print("Initial parameters")
 
 # edge_index = torch.tensor([[0, 1],
