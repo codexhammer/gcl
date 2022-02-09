@@ -80,7 +80,6 @@ def register_default_args(parser):
                         help="learning rate")
     parser.add_argument("--optim_file", type=str, default="opt_cora_test.pkl",
                         help="optimizer save path")
-    parser.add_argument('--weight_decay', type=float, default=5e-4)
     parser.add_argument('--max_param', type=float, default=5E6)
     parser.add_argument('--logger_file', type=str, default=f"logger_file_{time.time()}.txt")
     parser.add_argument('--task_override', type=bool, default=False)
@@ -89,11 +88,11 @@ def main(args):
 
     if args.cuda and torch.cuda.is_available():  # cuda is  available
         args.cuda = True
-        print("Training with cuda...")
+        print("\n\nTraining with cuda...\n")
     else:
         args.cuda = False
-        print("Training with cpu...")
-    args.epochs = 10
+        print("\n\nTraining with cpu...\n")
+    args.epochs = 4
     args.controller_max_step = 2
     # args.derive_num_sample = 1
 

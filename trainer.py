@@ -94,7 +94,7 @@ class Trainer(object):
 
 
 
-        self.train_gnn = Testing(self.args) ### Changed
+        self.train_gnn = Training(self.args) ### Changed
 
 
 
@@ -127,10 +127,10 @@ class Trainer(object):
             
             self.train_gnn.task_increment()
 
-            # if task_no == 0:
-            self.train_init()
-            # else:                
-            #     self.train_controller()
+            if task_no == 0:
+                self.train_init()
+            else:                
+                self.train_controller()
 
             # 3. Derive architectures
             # self.derive(sample_num=self.args.derive_num_sample)   # Need to be changed here!

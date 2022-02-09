@@ -44,15 +44,14 @@ class Training():
         self.alpha = args.alpha
         self.beta = args.beta
 
-        # Copied from pyg_gnn
         channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
         channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
 
         channels_gnn.insert(0,num_feat)
         self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
 
-        self.model = self.build_gnn(channels_gnn, channels_mlp, num_class, args.heads, args.mp_nn, args.in_drop).to(self.device)
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        self.model = self.build_gnn(channels_gnn, channels_mlp, num_class, args.heads,args.mp_nn,args.in_drop).to(self.device)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=args.lr)
 
         self.mc = copy.deepcopy(self.model)
 
@@ -85,26 +84,12 @@ class Training():
             self.evaluate_actions(actions_gnn, actions_mlp, state_num_gnn=1, state_num_mlp=2)
             self.model.weight_update(self.actions_gnn,self.actions_mlp)
             self.model.to(self.device)
+            self.optimizer = torch.optim.SGD(self.model.parameters(),lr=self.args.lr)
+            self.mc = copy.deepcopy(self.model)
             print('**')
         else:
             return
 
-    def evaluate(self, actions=None):
-        print("train action:", actions)
-
-        # create model
-        # try:
-        self.model, val_acc, test_acc = self.run_model()
-        # except RuntimeError as e:
-        #     if "cuda" in str(e) or "CUDA" in str(e):
-        #         print(e)
-        #         val_acc = 0
-        #         test_acc = 0
-        #     else:
-        #         raise e
-        return val_acc, test_acc
-
-    
     def train(self, actions=None):
 
         self.build_hidden_layers(actions)
@@ -136,7 +121,6 @@ class Training():
 
         return reward, val_acc
 
-    
     def test_model(self, data, test_mask, task_i):
         self.model.eval()
         data = data.to(self.device)
@@ -150,21 +134,12 @@ class Training():
         self.acc_matrix[self.current_task][task_i] = np.round(acc*100,2)
         tqdm.write("Test accuracy {:.4f} ".format(acc))
 
-    def equal_(self):
-        for (n,p),(_,pc) in zip(self.model.named_parameters(),self.mc.named_parameters()):
-            # print(i,n,p.grad,sep='\t')
-            if not torch.all(p.eq(pc)).data:
-                print(n,"\n", p.eq(pc),sep='\t')
-            else:
-                return True
-
     def observe(self, data, mode='train'):
 
         conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)
         logits = self.model(data.x, data.edge_index)
 
         if mode=='train':
-
             self.optimizer.zero_grad()
             data.train_mask =  data.train_mask * conditions
             logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
@@ -191,6 +166,8 @@ class Training():
                              
             loss.backward(retain_graph=True) # Class labels larger than n_class issue! https://github.com/pytorch/pytorch/issues/1204#issuecomment-366489299
             self.optimizer.step()
+            self.mc = copy.deepcopy(self.model)
+
         
         else:
             data.val_mask = data.val_mask * conditions
@@ -200,6 +177,13 @@ class Training():
 
         return loss.item(), outputs
 
+    def equal_(self):
+        for (n,p),(_,pc) in zip(self.model.named_parameters(),self.mc.named_parameters()):
+            # print(i,n,p.grad,sep='\t')
+            if not torch.all(p.eq(pc)).data:
+                print(n,"\n", p.eq(pc),sep='\t')
+            else:
+                return True
     
     def run_model(self):
 
@@ -241,32 +225,32 @@ class Training():
                     "Epoch {:05d} | Train Loss {:.4f} | Time(s) {:.4f} | Train acc {:.4f}".format(
                         epoch, loss, np.mean(dur), train_acc))
                         
-        val_loader = NeighborLoader(
-        self.data,
-        # Sample 30 neighbors for each node for 2 iterations
-        num_neighbors=[30] * 2,
-        # Use a batch size of 128 for sampling training nodes
-        batch_size=self.args.batch_size,
-        input_nodes = self.val_task_nid,
-        )
+        # val_loader = NeighborLoader(
+        # self.data,
+        # # Sample 30 neighbors for each node for 2 iterations
+        # num_neighbors=[30] * 2,
+        # # Use a batch size of 128 for sampling training nodes
+        # batch_size=self.args.batch_size,
+        # input_nodes = self.val_task_nid,
+        # )
 
         tqdm.write(f" Validation ".center(200, "*"),end="\n")
 
         self.model.eval()
 
-        for batch_i,data_i in enumerate(val_loader):
-            data_i = data_i.to(self.device)
+        # for batch_i,data_i in enumerate(val_loader):
+        #     data_i = data_i.to(self.device)
+        data_eval = copy.deepcopy(self.data).cuda()
+        val_loss, outputs = self.observe(data_eval, mode='eval')
 
-            val_loss, outputs = self.observe(data_i, mode='eval')
+        val_acc = evaluate(outputs, data_eval.y[data_eval.val_mask])
+        
+        tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
+                        val_loss, val_acc))
 
-            val_acc = evaluate(outputs, data_i.y[data_i.val_mask])
-            
-            tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
-                            val_loss, val_acc))
-
-            if val_loss < min_val_loss:  # and train_loss < min_train_loss
-                min_val_loss = val_loss
-                model_val_acc = val_acc
+        if val_loss < min_val_loss:  # and train_loss < min_train_loss
+            min_val_loss = val_loss
+            model_val_acc = val_acc
 
             
         return self.model, model_val_acc
