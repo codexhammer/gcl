@@ -1,11 +1,12 @@
-import glob
-import os
+import os.path as osp
 
 import numpy as np
 import scipy.signal
 import torch
 
 import utils.tensor_utils as utils
+from utils.result import result_file 
+
 from gnn_train import Training
 from tqdm import tqdm
 
@@ -68,8 +69,6 @@ class Trainer(object):
         controller_optimizer = _get_optimizer(self.args.controller_optim)
         self.controller_optim = controller_optimizer(self.controller.parameters(), lr=self.args.controller_lr)
 
-        if self.args.mode == "derive":
-            self.load_model()
 
     def build_model(self):
         self.args.share_param = False
@@ -89,30 +88,10 @@ class Trainer(object):
                                             action_list_mlp = self.action_list_mlp,                                                   
                                             cuda=self.args.cuda)
 
-        # self.train_gnn = Training(self.args) ### Changed
-
-
-
-
         self.train_gnn = Training(self.args) ### Changed
-
-
-
 
         if self.cuda:
             self.controller.cuda()
-
-    # def form_gnn_info(self, gnn):
-    #     if self.args.search_mode == "micro":
-    #         actual_action = {}
-    #         if self.args.predict_hyper:
-    #             actual_action["action"] = gnn[:-4]
-    #             actual_action["hyper_param"] = gnn[-4:]
-    #         else:
-    #             actual_action["action"] = gnn
-    #             actual_action["hyper_param"] = [0.005, 0.8, 5e-5, 128]
-    #         return actual_action
-    #     return gnn
 
     def train(self):
         r"""
@@ -132,17 +111,12 @@ class Trainer(object):
             else:                
                 self.train_controller()
 
-            # 3. Derive architectures
-            # self.derive(sample_num=self.args.derive_num_sample)   # Need to be changed here!
-
-            # if self.epoch % self.args.save_epoch == 0:
-            #     self.save_model()
         print(f'\n\n All tasks completed successfully!')
 
-        # if self.args.derive_finally:
-        #     best_actions = self.derive()
-        #     print("best structure:" + str(best_actions))
-        # self.save_model()
+        self.save_model()
+        acc_matrix = self.train_gnn.acc_matrix
+        result_file(self.args, acc_matrix)
+
 
     def train_init(self):        
         """
@@ -150,8 +124,8 @@ class Trainer(object):
         """
 
         # _, val_score = self.train_gnn.train()
-        self.train_gnn.train()
-        # logger.info(f"val_score:{val_score}")
+        _, val_score = self.train_gnn.train()
+        logger.info(f"Task no. 0: Val_score: {val_score}")
 
 
     def train_controller(self):
@@ -242,10 +216,9 @@ class Trainer(object):
 
         reward_list = []
         for gnn in gnn_list:
-            # gnn = self.form_gnn_info(gnn)
             reward = self.train_gnn.train(gnn)
 
-            if reward is None:  # cuda error hanppened
+            if reward is None:  # cuda error happened
                 reward = 0
             else:
                 reward = reward[1]
@@ -261,154 +234,7 @@ class Trainer(object):
 
         return rewards, hidden
 
-
-    def evaluate(self, gnn):
-        """
-        Evaluate a structure on the validation set.
-        """
-        self.controller.eval()
-        gnn = self.form_gnn_info(gnn)
-        results = self.train_gnn.train(gnn)
-        if results:
-            reward, scores = results
-        else:
-            return
-
-        logger.info(f'eval | {gnn} | reward: {reward:8.2f} | scores: {scores:8.2f}')
-
-    def derive_from_history(self):
-        with open(self.args.dataset + "_"  + self.args.logger_file, "a") as f:
-            lines = f.readlines()
-
-        results = []
-        best_val_score = "0"
-        for line in lines:
-            actions = line[:line.index(";")]
-            val_score = line.split(";")[-1]
-            results.append((actions, val_score))
-        results.sort(key=lambda x: x[-1], reverse=True)
-        best_structure = ""
-        best_score = 0
-        for actions in results[:5]:
-            actions = eval(actions[0])
-            np.random.seed(123)
-            torch.manual_seed(123)
-            torch.cuda.manual_seed_all(123)
-            val_scores_list = []
-            for i in range(20):
-                val_acc, test_acc = self.train_gnn.evaluate(actions)
-                val_scores_list.append(val_acc)
-
-            tmp_score = np.mean(val_scores_list)
-            if tmp_score > best_score:
-                best_score = tmp_score
-                best_structure = actions
-
-        print("best structure:" + str(best_structure))
-        # train from scratch to get the final score
-        np.random.seed(123)
-        torch.manual_seed(123)
-        torch.cuda.manual_seed_all(123)
-        test_scores_list = []
-        for i in range(100):
-            # manager.shuffle_data()
-            val_acc, test_acc = self.train_gnn.evaluate(best_structure)
-            test_scores_list.append(test_acc)
-        print(f"best results: {best_structure}: {np.mean(test_scores_list):.8f} +/- {np.std(test_scores_list)}")
-        return best_structure
-
-    def derive(self, sample_num=None):
-        """
-        sample a serial of structures, and return the best structure.
-        """
-        if sample_num is None and self.args.derive_from_history:
-            return self.derive_from_history()
-        else:
-            if sample_num is None:
-                sample_num = self.args.derive_num_sample
-
-            gnn_list, _, entropies = self.controller.sample(sample_num, with_details=True)
-
-            max_R = 0
-            best_actions = None
-            filename = self.model_info_filename
-            for action in gnn_list:
-                gnn = self.form_gnn_info(action)
-                reward = self.train_gnn.train(gnn)
-
-                if reward is None:  # cuda error hanppened
-                    continue
-                else:
-                    results = reward[1]
-
-                if results > max_R:
-                    max_R = results
-                    best_actions = action
-
-            logger.info(f'derive |action:{best_actions} |max_R: {max_R:8.6f}')
-            self.evaluate(best_actions)
-            return best_actions
-
-    @property
-    def model_info_filename(self):
-        return f"{self.args.dataset}_results.txt"
-
-    @property
-    def controller_path(self):
-        return f'{self.args.dataset}/controller_epoch{self.epoch}_step{self.controller_step}.pth'
-
-    @property
-    def controller_optimizer_path(self):
-        return f'{self.args.dataset}/controller_epoch{self.epoch}_step{self.controller_step}_optimizer.pth'
-
-    def get_saved_models_info(self):
-        paths = glob.glob(os.path.join(self.args.dataset, '*.pth'))
-        paths.sort()
-
-        def get_numbers(items, delimiter, idx, replace_word, must_contain=''):
-            return list(set([int(
-                name.split(delimiter)[idx].replace(replace_word, ''))
-                for name in items if must_contain in name]))
-
-        basenames = [os.path.basename(path.rsplit('.', 1)[0]) for path in paths]
-        epochs = get_numbers(basenames, '_', 1, 'epoch')
-        shared_steps = get_numbers(basenames, '_', 2, 'step', 'shared')
-        controller_steps = get_numbers(basenames, '_', 2, 'step', 'controller')
-
-        epochs.sort()
-        shared_steps.sort()
-        controller_steps.sort()
-
-        return epochs, shared_steps, controller_steps
-
     def save_model(self):
-
-        torch.save(self.controller.state_dict(), self.controller_path)
-        torch.save(self.controller_optim.state_dict(), self.controller_optimizer_path)
-
-        logger.info(f'[*] SAVED: {self.controller_path}')
-
-        epochs, shared_steps, controller_steps = self.get_saved_models_info()
-
-        for epoch in epochs[:-self.args.max_save_num]:
-            paths = glob.glob(
-                os.path.join(self.args.dataset, f'*_epoch{epoch}_*.pth'))
-
-            for path in paths:
-                utils.remove_file(path)
-
-    def load_model(self):
-        epochs, shared_steps, controller_steps = self.get_saved_models_info()
-
-        if len(epochs) == 0:
-            logger.info(f'[!] No checkpoint found in {self.args.dataset}...')
-            return
-
-        self.epoch = self.start_epoch = max(epochs)
-        self.controller_step = max(controller_steps)
-
-        self.controller.load_state_dict(
-            torch.load(self.controller_path))
-        self.controller_optim.load_state_dict(
-            torch.load(self.controller_optimizer_path))
-        logger.info(f'[*] LOADED: {self.controller_path}')
+        torch.save(self.controller.state_dict(),
+                osp.join(f'{self.args.dataset}',
+                f'{self.args.dataset}_{self.args.mp_nn}_controller.pt'))

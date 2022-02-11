@@ -7,7 +7,7 @@ from torch_geometric.loader import NeighborLoader
 
 from utils.buffer import Buffer
 from utils.load_data import DataLoader
-from utils.model_utils import EarlyStop, TopAverage, process_action
+from utils.model_utils import TopAverage
 from utils.score import evaluate, f1_score_calc
 
 from search_space import MacroSearchSpace
@@ -33,8 +33,6 @@ class Testing():
         self.classes_in_task = self.data_load.classes_in_task
         self.class_per_task = len(self.classes_in_task[0])
 
-
-        self.early_stop_manager = EarlyStop(10)
         self.reward_manager = TopAverage(10)
         self.epochs = args.epochs
 
@@ -128,7 +126,7 @@ class Testing():
 
         outputs = self.model(data.x, data.edge_index)
         outputs = outputs[test_mask][:,self.classes_in_task[task_i]]
-        outputs = F.log_softmax(outputs, 1)
+        # outputs = F.log_softmax(outputs, 1)
         labels = data.y[test_mask]
 
         acc = f1_score_calc(outputs, labels)
@@ -144,8 +142,6 @@ class Testing():
             self.optimizer.zero_grad()
             data.train_mask =  data.train_mask * conditions
             logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
-            # outputs = F.log_softmax(logits, 1)
-            # loss = self.loss(outputs[data.train_mask], data.y[data.train_mask])
             loss = self.loss(logits, data.y[data.train_mask]-self.current_task*self.class_per_task)
 
             if not self.buffer.is_empty() and self.current_task:
@@ -156,13 +152,15 @@ class Testing():
                 buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
                 loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
 
-                buf_data, buf_logits, task_no = self.buffer.get_data(
+                buf_data, _, task_no = self.buffer.get_data(
                     self.args.minibatch_size, transform=None)
                 buf_outputs = self.model(buf_data.x, buf_data.edge_index)
                 buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
-                buf_outputs = F.log_softmax(buf_outputs, 1)
+                # buf_outputs = F.log_softmax(buf_outputs, 1)
                 loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
-                        
+
+            self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
+
             loss.backward(retain_graph=True) 
             self.optimizer.step()
             self.mc = copy.deepcopy(self.model)
@@ -170,8 +168,10 @@ class Testing():
         else:
             data.val_mask = data.val_mask * conditions
             logits = logits[data.val_mask][:,self.classes_in_task[self.current_task]]
-            outputs = F.log_softmax(logits, 1)
-            loss = self.loss(outputs, data.y[data.val_mask]-self.current_task*self.class_per_task)
+            # outputs = F.log_softmax(logits, 1)
+            # loss = self.loss(outputs, data.y[data.val_mask]-self.current_task*self.class_per_task)
+            loss = self.loss(logits, data.y[data.val_mask]-self.current_task*self.class_per_task)
+
 
         return loss.item(), logits
 
@@ -186,6 +186,7 @@ class Testing():
     def run_model(self):
 
         self.model.train()
+        
         dur = []
         min_val_loss = float("inf")
         model_val_acc = 0

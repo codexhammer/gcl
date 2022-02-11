@@ -2,13 +2,14 @@
 class MacroSearchSpace():
     def __init__(self):
             self.search_space_gnn = {
-                'hidden_units': [8,16,32,64,128]
-                          }
+                'gnn_add_nodes': [8,9,10,11,12],
+                'gnn_del_nodes': [4,5, 6, 7, 8]
+            }
 
                           
             self.search_space_mlp = {
-                'add_nodes' : [10,15,20,25,30],
-                'del_nodes' : [2, 4, 6, 8, 10]
+                'mlp_add_nodes' : [10,11,12,13,14],
+                'mlp_del_nodes' : [2, 4, 6, 8, 10]
             }
 
     def get_search_space(self):
