@@ -236,7 +236,7 @@ class Training():
         # Sample 30 neighbors for each node for 2 iterations
         num_neighbors=[30] * 2,
         # Use a batch size of 128 for sampling training nodes
-        batch_size=self.args.batch_size,
+        batch_size=self.args.batch_size_nei,
         input_nodes = self.val_task_nid,
         )
 
