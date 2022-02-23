@@ -64,8 +64,6 @@ def register_default_args(parser):
                         help="number of training epochs")
     parser.add_argument("--heads", type=int, default=1,
                         help="number of heads")
-    parser.add_argument("--in_drop", type=float, default=0.6,
-                        help="input feature dropout")
     parser.add_argument("--lr", type=float, default=0.005,
                         help="learning rate")
     parser.add_argument("--param_file", type=str, default="cora_test.pkl",

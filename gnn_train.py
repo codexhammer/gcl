@@ -50,17 +50,13 @@ class Training():
         channels_gnn.insert(0,num_feat)
         self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
 
-        self.model = self.build_gnn(channels_gnn, channels_mlp, num_class, args.heads,args.mp_nn,args.in_drop).to(self.device)
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=args.lr)
+        self.model = GraphLayer(channels_gnn, channels_mlp, num_class, args.heads, args.mp_nn).to(self.device)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr)
 
         # self.mc = copy.deepcopy(self.model)
 
         self.args = args
-    
-    def build_gnn(self, channels_gnn, channels_mlp, num_class, heads=1, mp_nn='gcn', dropout=0.5):
-        model = GraphLayer(channels_gnn, channels_mlp, num_class, heads, mp_nn, dropout)
-        return model
-    
+        
     def task_increment(self):
         self.current_task, (self.train_task_nid, self.val_task_nid) = next(self.task_iter)
 
@@ -86,7 +82,7 @@ class Training():
             self.evaluate_actions(actions_gnn, actions_mlp, state_num_gnn=2, state_num_mlp=2)
             self.model.weight_update(self.actions_gnn,self.actions_mlp)
             self.model.to(self.device)
-            self.optimizer = torch.optim.SGD(self.model.parameters(),lr=self.args.lr)
+            self.optimizer = torch.optim.Adam(self.model.parameters(),lr=self.args.lr)
             # self.mc = copy.deepcopy(self.model)
             print('**')
         else:
