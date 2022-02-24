@@ -18,7 +18,7 @@ def build_args():
 def register_default_args(parser):
     
     parser.add_argument('--random_seed', type=int, default=123)
-    parser.add_argument("--cuda", type=bool, default=True, required=False,
+    parser.add_argument("--cuda", type=bool, default=False, required=False,
                         help="run in cuda mode")
     parser.add_argument("--dataset", type=str, default="Cora", required=False,
                         help="The input dataset.")
@@ -33,7 +33,7 @@ def register_default_args(parser):
 
     parser.add_argument('--ema_baseline_decay', type=float, default=0.95)
     parser.add_argument('--discount', type=float, default=1.0)
-    parser.add_argument('--controller_max_step', type=int, default=100,
+    parser.add_argument('--controller_max_step', type=int, default=5,
                         help='step for controller parameters')
     parser.add_argument('--controller_optim', type=str, default='adam')
     parser.add_argument('--controller_lr', type=float, default=3.5e-4,
@@ -55,7 +55,7 @@ def register_default_args(parser):
                         help='Penalty weight.')
 
     # child model
-    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[4,5])
+    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[16,16])
     parser.add_argument('--channels_mlp', nargs='+', type=int, default=[5,6])
     parser.add_argument('--mp_nn', type=str, default='gcn', choices=['gcn', 'gat', 'sg'])
 
@@ -88,7 +88,7 @@ def main(args):
     # Sanity check
     if not args.task_override:
         if args.dataset == "Cora":
-            args.n_tasks = 1
+            args.n_tasks = 3
             
         elif args.dataset == "Citeseer":
             args.n_tasks = 3

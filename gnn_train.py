@@ -45,12 +45,12 @@ class Training():
         self.beta = args.beta
 
         channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
-        channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
+        # channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
 
         channels_gnn.insert(0,num_feat)
         self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
 
-        self.model = GraphLayer(channels_gnn, channels_mlp, num_class, args.heads, args.mp_nn).to(self.device)
+        self.model = GraphLayer(channels_gnn, channels_mlp=None, num_class=num_class, heads=args.heads, mp_nn=args.mp_nn).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr)
 
         # self.mc = copy.deepcopy(self.model)
@@ -60,27 +60,21 @@ class Training():
     def task_increment(self):
         self.current_task, (self.train_task_nid, self.val_task_nid) = next(self.task_iter)
 
-    def evaluate_actions(self, actions_gnn, actions_mlp, state_num_gnn=2, state_num_mlp=2):
-        state_length_gnn = len(actions_gnn)
-        if state_length_gnn % state_num_gnn!=0:
-            raise RuntimeError("Wrong GNN Input: unmatchable input")
-
-        state_length_mlp = len(actions_mlp)
-        if state_length_mlp % state_num_mlp != 0:
-            raise RuntimeError("Wrong MLP Input: unmatchable input")
 
     def build_hidden_layers(self, actions):
         if actions:
             search_space_cls = MacroSearchSpace()
-            action_list_gnn, _ = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
+            # action_list_gnn, _ = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
+            action_list_gnn = search_space_cls.generate_action_list(len(self.args.channels_gnn))
             actions_gnn = actions[:len(action_list_gnn)]
-            actions_mlp = actions[len(action_list_gnn):]
+            # actions_mlp = actions[len(action_list_gnn):]
 
             self.actions_gnn = list(map(lambda x,y:x-y,actions_gnn[::2],actions_gnn[1::2]))
-            self.actions_mlp = list(map(lambda x,y:x-y,actions_mlp[::2],actions_mlp[1::2]))
+            # self.actions_mlp = list(map(lambda x,y:x-y,actions_mlp[::2],actions_mlp[1::2]))
 
-            self.evaluate_actions(actions_gnn, actions_mlp, state_num_gnn=2, state_num_mlp=2)
-            self.model.weight_update(self.actions_gnn,self.actions_mlp)
+            # self.model.weight_update(self.actions_gnn,self.actions_mlp)
+            self.model.weight_update(self.actions_gnn)
+
             self.model.to(self.device)
             self.optimizer = torch.optim.Adam(self.model.parameters(),lr=self.args.lr)
             # self.mc = copy.deepcopy(self.model)

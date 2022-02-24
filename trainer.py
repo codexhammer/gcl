@@ -71,22 +71,36 @@ class Trainer(object):
 
 
     def build_model(self):
-        self.args.share_param = False
-        # self.args.shared_initial_step = 0
-        # if self.args.search_mode == "macro":
-            # generate model description in macro way (generate entire network description)
+        
+
+        # from search_space import MacroSearchSpace
+        # search_space_cls = MacroSearchSpace()
+        # self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
+        # self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
+        # # build RNN controller
+        # from graph_controller import Controller
+        # self.controller = Controller(self.args, 
+        #                                     search_space_gnn = self.search_space_gnn,
+        #                                     search_space_mlp = self.search_space_mlp,
+        #                                     action_list_gnn = self.action_list_gnn,
+        #                                     action_list_mlp = self.action_list_mlp,                                                   
+        #                                     cuda=self.args.cuda)
+
+
+
+
         from search_space import MacroSearchSpace
         search_space_cls = MacroSearchSpace()
-        self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
-        self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
+        self.search_space_gnn = search_space_cls.get_search_space()
+        self.action_list_gnn = search_space_cls.generate_action_list(len(self.args.channels_gnn))
         # build RNN controller
-        from graph_controller import Controller
+        from graph_controller_gnn import Controller
         self.controller = Controller(self.args, 
                                             search_space_gnn = self.search_space_gnn,
-                                            search_space_mlp = self.search_space_mlp,
-                                            action_list_gnn = self.action_list_gnn,
-                                            action_list_mlp = self.action_list_mlp,                                                   
+                                            action_list_gnn = self.action_list_gnn,                                               
                                             cuda=self.args.cuda)
+
+
 
         self.train_gnn = Training(self.args) ### Changed
 

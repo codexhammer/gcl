@@ -7,13 +7,15 @@ class GraphLayer(nn.Module):
 
     def __init__(self,
                  channels_gnn,
-                 channels_mlp,
-                 num_class,
+                 channels_mlp=None,
+                 num_class=None,
                  heads=1,
                  mp_nn="gcn",
                  bias_gnn=True,
                  bias_mlp=True):
         super().__init__()
+
+        channels_gnn.append(num_class)
         
         self.channels_gnn = channels_gnn
         self.mp_nn = mp_nn
@@ -50,9 +52,13 @@ class GraphLayer(nn.Module):
         return model.state_dict()
 
     def weight_update_gnn(self, wgt_add):
-        assert len(self.gnn) == len(wgt_add), "Match number of GNNs and feature additions"
+        assert len(self.gnn) -1== len(wgt_add), "Match number of GNNs and feature additions"
 
-        for i in range(1,len(self.channels_gnn)):
+
+        # for i in range(1,len(self.channels_gnn)):
+        #     self.channels_gnn[i] = self.channels_gnn[i] + wgt_add[i-1]
+
+        for i in range(1,len(self.channels_gnn)-1):
             self.channels_gnn[i] = self.channels_gnn[i] + wgt_add[i-1]
 
         for i in range(len(self.gnn)):
@@ -96,7 +102,7 @@ class GraphLayer(nn.Module):
     #             if self.bias_mlp:
     #                 self.linear[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
 
-    def weight_update(self, wgt_gnn, wgt_mlp):
+    def weight_update(self, wgt_gnn=None, wgt_mlp=None):
         self.weight_update_gnn(wgt_gnn)
         # self.weight_update_mlp(wgt_mlp)             
   
