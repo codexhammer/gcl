@@ -24,7 +24,7 @@ def result_file(args, score_matrix, times):
 
     rc = ['Task '+str(i) for i in range(1,args.n_tasks+1)]
 
-    with open(osp.join(f'data/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'a') as f:
+    with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'a') as f:
         f.write(f'Trial no. {times}\n')
         pd.DataFrame(score_matrix, index=rc, columns=rc).to_csv(f)
         f.write('\n')
