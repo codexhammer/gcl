@@ -5,6 +5,7 @@ import time
 import torch
 import os.path as osp
 import trainer as trainer
+import os
 
 
 def build_args():
@@ -108,7 +109,9 @@ def main(args):
     
     print(f"\nArguments = {args}\n\n")
 
-    with open(osp.join(f'data/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'a') as f:
+    os.makedirs(osp.join(f'results/', f'{args.dataset}'))
+
+    with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'a') as f:
         f.write(f'{args.dataset} dataset\n\n')
     
     for times in range(5):
