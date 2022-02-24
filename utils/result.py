@@ -15,8 +15,8 @@ def average_forgeting(n_tasks, score_matrix):
 
 
 def result_file(args, score_matrix):
-    # mean_backward = average_forgeting(args.n_tasks, score_matrix)
-    # print(f'\n\n Average forgetting = {mean_backward}',end='\n\n')
+    mean_backward = average_forgeting(args.n_tasks, score_matrix)
+    print(f'\n\n Average forgetting = {mean_backward}',end='\n\n')
     print(f'\n\n Average accuracy = {score_matrix}',end='\n\n')
 
     # af = pd.DataFrame(mean_backward, index=list(range(args.n_tasks-1)), columns=['Average forgetting'])

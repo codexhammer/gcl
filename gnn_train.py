@@ -261,9 +261,9 @@ class Training():
         
         if update_all:
             torch.save(self.model.state_dict(),
-                    osp.join(f'{self.args.dataset}', f'{self.args.dataset}_{self.args.mp_nn}_gnn.pt') )
+                    osp.join(f'data/', f'{self.args.dataset}',  f'{self.args.dataset}_{self.args.mp_nn}_gnn.pt') )
 
-        with open(osp.join(f'{self.args.dataset}', 
+        with open(osp.join(f'data/', f'{self.args.dataset}',
                     f'{self.args.dataset}_{self.args.mp_nn}_{self.args.logger_file}'), "a") as file:
 
             file.write(str(origin_action))
