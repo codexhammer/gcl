@@ -123,7 +123,7 @@ class Training():
             # outputs = F.log_softmax(outputs, 1)
             labels = data.y[test_mask]
 
-        acc = f1_score_calc(outputs, labels)
+        acc = f1_score_calc(outputs, labels,task_i*self.class_per_task)
         self.acc_matrix[self.current_task][task_i] = np.round(acc*100,2)
         tqdm.write("Test accuracy {:.4f} ".format(acc))
 
@@ -211,7 +211,7 @@ class Training():
                 loss, outputs = self.observe(data_i, mode='train')
             
             if epoch%50==0 :
-                train_acc = evaluate(outputs, data_i.y[data_i.train_mask])
+                train_acc = evaluate(outputs, data_i.y[data_i.train_mask], self.current_task*self.class_per_task)
                 dur.append(time.time() - t0)
                 
                 tqdm.write(
@@ -240,7 +240,7 @@ class Training():
             # data_eval = copy.deepcopy(self.data).cuda()
                 val_loss, outputs = self.observe(data_i, mode='eval')
 
-                val_acc = evaluate(outputs, data_i.y[data_i.val_mask])
+                val_acc = evaluate(outputs, data_i.y[data_i.val_mask],self.current_task*self.class_per_task)
                 val_acc_list.append(val_acc)
             
                 tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}".format(
