@@ -3,7 +3,7 @@
 import argparse
 import time
 import torch
-
+import os.path as osp
 import trainer as trainer
 
 
@@ -105,10 +105,17 @@ def main(args):
         torch.cuda.manual_seed(args.random_seed)
 
     # utils.makedirs(args.dataset)
-
-    trnr = trainer.Trainer(args)
+    
     print(f"\nArguments = {args}\n\n")
-    trnr.train()
+
+    with open(osp.join(f'data/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'a') as f:
+        f.write(f'{args.dataset} dataset\n\n')
+    
+    for times in range(5):
+        print('\n'*10,' Trial no. ',times,'\n'*10)
+
+        trnr = trainer.Trainer(args,times)
+        trnr.train()
 
 if __name__ == "__main__":
     args = build_args()

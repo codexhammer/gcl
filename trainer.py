@@ -44,7 +44,7 @@ def _get_optimizer(name):
 class Trainer(object):
     """Manage the training process"""
 
-    def __init__(self, args):
+    def __init__(self, args,times):
         r"""
         Constructor for training algorithm.
         Build sub-model manager and controller.
@@ -68,6 +68,8 @@ class Trainer(object):
 
         controller_optimizer = _get_optimizer(self.args.controller_optim)
         self.controller_optim = controller_optimizer(self.controller.parameters(), lr=self.args.controller_lr)
+
+        self.times = times
 
 
     def build_model(self):
@@ -129,7 +131,7 @@ class Trainer(object):
 
         self.save_model()
         acc_matrix = self.train_gnn.acc_matrix
-        result_file(self.args, acc_matrix)
+        result_file(self.args, acc_matrix, self.times)
 
 
     def train_init(self):        
