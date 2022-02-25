@@ -109,9 +109,7 @@ def main(args):
     
     print(f"\nArguments = {args}\n\n")
 
-    os.makedirs(osp.join(f'results/', f'{args.dataset}'))
-
-    with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'a') as f:
+    with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'w') as f:
         f.write(f'{args.dataset} dataset\n\n')
     
     for times in range(5):
