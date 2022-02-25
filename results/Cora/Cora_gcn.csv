@@ -1,0 +1,32 @@
+Cora dataset
+
+Trial no. 0
+,Task 1,Task 2,Task 3
+Task 1,95.02,0.0,0.0
+Task 2,93.21,87.69,0.0
+Task 3,91.4,90.71,96.03
+
+Trial no. 1
+,Task 1,Task 2,Task 3
+Task 1,95.02,0.0,0.0
+Task 2,94.57,88.55,0.0
+Task 3,93.21,86.83,90.48
+
+Trial no. 2
+,Task 1,Task 2,Task 3
+Task 1,92.31,0.0,0.0
+Task 2,92.31,85.75,0.0
+Task 3,92.76,87.47,95.63
+
+Trial no. 3
+,Task 1,Task 2,Task 3
+Task 1,93.67,0.0,0.0
+Task 2,92.31,92.87,0.0
+Task 3,93.67,88.34,96.03
+
+Trial no. 4
+,Task 1,Task 2,Task 3
+Task 1,94.57,0.0,0.0
+Task 2,92.76,90.93,0.0
+Task 3,92.31,88.98,92.06
+

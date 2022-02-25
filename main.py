@@ -21,7 +21,7 @@ def register_default_args(parser):
     parser.add_argument('--random_seed', type=int, default=123)
     parser.add_argument("--cuda", type=bool, default=False, required=False,
                         help="run in cuda mode")
-    parser.add_argument("--dataset", type=str, default="Cora", required=False,
+    parser.add_argument("--dataset", type=str, default="Citeseer", required=False,
                         help="The input dataset.")
     parser.add_argument('--n_tasks', type=int, default=4)
 
@@ -61,7 +61,7 @@ def register_default_args(parser):
     parser.add_argument('--mp_nn', type=str, default='gcn', choices=['gcn', 'gat', 'sg'])
 
 
-    parser.add_argument("--epochs", type=int, default=150,
+    parser.add_argument("--epochs", type=int, default=250,
                         help="number of training epochs")
     parser.add_argument("--heads", type=int, default=1,
                         help="number of heads")
@@ -108,6 +108,9 @@ def main(args):
     # utils.makedirs(args.dataset)
     
     print(f"\nArguments = {args}\n\n")
+
+    if not osp.exists(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv')):
+        os.makedirs(osp.join(f'results/', f'{args.dataset}'))
 
     with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'w') as f:
         f.write(f'{args.dataset} dataset\n\n')
