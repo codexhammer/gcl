@@ -95,7 +95,7 @@ class DataLoader():
 
             return current_task, (train_task_nid, val_task_nid)
     
-    def test_nodes(self, test_task_no):
+    def test_masking(self, test_task_no):
         return self.test_mask_info[test_task_no]
 
 

@@ -97,7 +97,7 @@ class Training():
 
 
             for task_i in range(self.current_task+1):
-                _, test_mask = self.data_load.test_nodes(task_i)
+                _, test_mask = self.data_load.test_masking(task_i)
                 self.test_model(copy.deepcopy(self.data), test_mask, task_i)
 
         except RuntimeError as e:
@@ -119,39 +119,63 @@ class Training():
             data = data.to(self.device)
 
             outputs = self.model(data.x, data.edge_index)
-            outputs = outputs[test_mask][:,self.classes_in_task[task_i]]
-            # outputs = F.log_softmax(outputs, 1)
-            labels = data.y[test_mask]
 
-        acc = f1_score_calc(outputs, labels,task_i*self.class_per_task)
+            if self.args.setting == 'task':
+                outputs = outputs[test_mask][:,self.classes_in_task[task_i]]
+                labels = data.y[test_mask]
+                acc = f1_score_calc(outputs, labels, task_i*self.class_per_task)
+            else:
+                outputs = outputs[test_mask]
+                labels = data.y[test_mask]
+                acc = f1_score_calc(outputs, labels)
+
         self.acc_matrix[self.current_task][task_i] = np.round(acc*100,2)
         tqdm.write("Test accuracy {:.4f} ".format(acc))
 
+
     def observe(self, data, mode='train'):
 
-        conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)
         logits = self.model(data.x, data.edge_index)
 
         if mode=='train':
             self.optimizer.zero_grad()
-            data.train_mask =  data.train_mask * conditions
-            logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
-            loss = self.loss(logits, data.y[data.train_mask]-self.current_task*self.class_per_task)
+
+            if self.args.setting == 'task':
+                conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)
+                data.train_mask =  data.train_mask * conditions
+                logits = logits[data.train_mask][:,self.classes_in_task[self.current_task]]
+                loss = self.loss(logits, data.y[data.train_mask]-self.current_task*self.class_per_task)
+            else:
+                conditions = torch.BoolTensor([l in range(max(self.classes_in_task[self.current_task])+1) for l in data.y]).to(self.device)
+                data.train_mask =  data.train_mask * conditions
+                logits = logits[data.train_mask]
+                loss = self.loss(logits, data.y[data.train_mask])
 
             if not self.buffer.is_empty() and self.current_task:
                 
                 buf_data, buf_logits, task_no = self.buffer.get_data(
                     self.args.minibatch_size, transform=None)
                 buf_outputs = self.model(buf_data.x, buf_data.edge_index)
-                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                
+                if self.args.setting == 'task':
+                    buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                else:
+                    buf_outputs = buf_outputs[buf_data.train_mask]
+
                 loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
+                
+                ### Alpha-beta
 
                 buf_data, _, task_no = self.buffer.get_data(
                     self.args.minibatch_size, transform=None)
                 buf_outputs = self.model(buf_data.x, buf_data.edge_index)
-                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
-                # buf_outputs = F.log_softmax(buf_outputs, 1)
-                loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
+
+                if self.args.setting == 'task':
+                    buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                    loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
+                else:
+                    buf_outputs = buf_outputs[buf_data.train_mask]
+                    loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask])
 
             self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
                              
@@ -160,12 +184,17 @@ class Training():
             # self.mc = copy.deepcopy(self.model)
 
         else:
-            data.val_mask = data.val_mask * conditions
-            logits = logits[data.val_mask][:,self.classes_in_task[self.current_task]]
-            # outputs = F.log_softmax(logits, 1)
-            # loss = self.loss(outputs, data.y[data.val_mask]-self.current_task*self.class_per_task)
-            loss = self.loss(logits, data.y[data.val_mask]-self.current_task*self.class_per_task)
-
+            
+            if self.args.setting == 'task':
+                conditions = torch.BoolTensor([l in self.classes_in_task[self.current_task] for l in data.y]).to(self.device)
+                data.val_mask = data.val_mask * conditions
+                logits = logits[data.val_mask][:,self.classes_in_task[self.current_task]]
+                loss = self.loss(logits, data.y[data.val_mask]-self.current_task*self.class_per_task)
+            else:
+                conditions = torch.BoolTensor([l in range(max(self.classes_in_task[self.current_task])+1) for l in data.y]).to(self.device)
+                data.val_mask = data.val_mask * conditions
+                logits = logits[data.val_mask]
+                loss = self.loss(logits, data.y[data.val_mask])
 
         return loss.item(), logits
 
@@ -261,7 +290,7 @@ class Training():
         
         if update_all:
             torch.save(self.model.state_dict(),
-                    osp.join(f'data/', f'{self.args.dataset}',  f'{self.args.dataset}_{self.args.mp_nn}_gnn.pt') )
+                    osp.join(f'data/', f'{self.args.dataset}',  f'{self.args.dataset}_{self.args.mp_nn}_{self.args.setting}_gnn.pt') )
 
         with open(osp.join(f'data/', f'{self.args.dataset}',
                     f'{self.args.dataset}_{self.args.mp_nn}_{self.args.logger_file}'), "a") as file:

@@ -17,11 +17,13 @@ def build_args():
 
 
 def register_default_args(parser):
+
+    parser.add_argument('--setting', type=str, default='task', choices=['task','class'], help='Type of continual learning')
     
     parser.add_argument('--random_seed', type=int, default=123)
     parser.add_argument("--cuda", type=bool, default=False, required=False,
                         help="run in cuda mode")
-    parser.add_argument("--dataset", type=str, default="Citeseer", required=False,
+    parser.add_argument("--dataset", type=str, default="Cora", required=False,
                         help="The input dataset.")
     parser.add_argument('--n_tasks', type=int, default=4)
 
@@ -44,7 +46,7 @@ def register_default_args(parser):
     parser.add_argument('--softmax_temperature', type=float, default=5.0)
     
     #buffer
-    parser.add_argument('--buffer_size', type=int, default= 6000, required=False, 
+    parser.add_argument('--buffer_size', type=int, default= 100, required=False, 
                         help='The size of the memory buffer.')
     parser.add_argument('--minibatch_size', type=int, default= 128, required=False,
                         help='The mini-batch size of the memory buffer.')
@@ -56,8 +58,8 @@ def register_default_args(parser):
                         help='Penalty weight.')
 
     # child model
-    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[16,16])
-    parser.add_argument('--channels_mlp', nargs='+', type=int, default=[5,6])
+    parser.add_argument('--channels_gnn', nargs='+', type=int, default=[20,20])
+    # parser.add_argument('--channels_mlp', nargs='+', type=int, default=[5,6])
     parser.add_argument('--mp_nn', type=str, default='gcn', choices=['gcn', 'gat', 'sg'])
 
 
@@ -67,10 +69,10 @@ def register_default_args(parser):
                         help="number of heads")
     parser.add_argument("--lr", type=float, default=0.005,
                         help="learning rate")
-    parser.add_argument("--param_file", type=str, default="cora_test.pkl",
-                        help="learning rate")
-    parser.add_argument("--optim_file", type=str, default="opt_cora_test.pkl",
-                        help="optimizer save path")
+    # parser.add_argument("--param_file", type=str, default="cora_test.pkl",
+    #                     help="learning rate")
+    # parser.add_argument("--optim_file", type=str, default="opt_cora_test.pkl",
+    #                     help="optimizer save path")
     parser.add_argument('--max_param', type=float, default=5E6)
     parser.add_argument('--logger_file', type=str, default=f"logger_file_{time.time()}.txt")
     parser.add_argument('--task_override', type=bool, default=False)
@@ -83,6 +85,13 @@ def main(args):
     else:
         args.cuda = False
         print("\n\nTraining with cpu...\n")
+    if args.setting=='task':
+        print('Task-IL setting')
+    elif args.setting=='class':
+        print('Class-IL setting')
+    else:
+        raise Exception('Check IL setting')
+
     # args.epochs = 4
     # args.controller_max_step = 2
 
@@ -109,10 +118,10 @@ def main(args):
     
     print(f"\nArguments = {args}\n\n")
 
-    if not osp.exists(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv')):
+    if not osp.exists(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.setting}_{args.mp_nn}.csv')):
         os.makedirs(osp.join(f'results/', f'{args.dataset}'))
 
-    with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.mp_nn}.csv') , 'w') as f:
+    with open(osp.join(f'results/', f'{args.dataset}',  f'{args.dataset}_{args.setting}_{args.mp_nn}.csv') , 'w') as f:
         f.write(f'{args.dataset} dataset\n\n')
     
     for times in range(5):

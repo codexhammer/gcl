@@ -253,4 +253,4 @@ class Trainer(object):
     def save_model(self):
         torch.save(self.controller.state_dict(),
                 osp.join(f'data/', f'{self.args.dataset}',
-                f'{self.args.dataset}_{self.args.mp_nn}_controller.pt'))
+                f'{self.args.dataset}_{self.args.mp_nn}_{self.args.setting}_controller.pt'))

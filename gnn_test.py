@@ -104,7 +104,7 @@ class Testing():
 
 
         for task_i in range(self.current_task+1):
-            _, test_mask = self.data_load.test_nodes(task_i)
+            _, test_mask = self.data_load.test_masking(task_i)
             self.test_model(copy.deepcopy(self.data), test_mask, task_i)
 
         # except RuntimeError as e:
