@@ -12,8 +12,6 @@ from tqdm import tqdm
 
 from gnn_test import Testing
 
-logger = utils.get_logger()
-
 
 def discount(x, amount):
     return scipy.signal.lfilter([1], [1, -amount], x[::-1], axis=0)[::-1]
@@ -122,7 +120,7 @@ class Trainer(object):
             self.train_gnn.task_increment()
 
             # if task_no == 0:
-            self.train_init()
+            self.train_gnn.train()
             # else:                
             #     self.train_controller()
 
@@ -130,15 +128,6 @@ class Trainer(object):
 
         acc_matrix = self.train_gnn.acc_matrix
         result_file(self.args, acc_matrix, self.times,self.path)
-
-
-    def train_init(self):        
-        """
-            Train first task without controller.
-        """
-
-        _, val_score = self.train_gnn.train()
-        logger.info(f"Task no. 0: Val_score: {val_score}")
 
 
     def train_controller(self):
