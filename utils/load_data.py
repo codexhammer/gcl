@@ -1,54 +1,88 @@
 import torch
-from torch_geometric.datasets import Planetoid, Coauthor, Amazon, Reddit, TUDataset
+from torch_geometric.datasets import Planetoid, Amazon, Reddit, CoraFull, PPI
 import torch_geometric.transforms as T
 import os.path as osp
 import numpy as np
-
-from torch_geometric.data import Data
+from collections import defaultdict, Counter
 
 class DataLoader():
     def __init__(self, args=None):
-        dataset = args.dataset
 
-        path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', dataset)
-        if dataset in ["CS", "Physics"]:
-            dataset = Coauthor(path, dataset, T.NormalizeFeatures())
-        elif dataset in ["Computers", "Photo"]:
-            dataset = Amazon(path, dataset, T.NormalizeFeatures())
-        elif dataset in ["Cora", "Citeseer", "Pubmed"]:
-            dataset = Planetoid(path, dataset, transform=T.NormalizeFeatures())
-        elif dataset=='Reddit':
-            dataset = Reddit(path, transform=T.NormalizeFeatures())
+        path = osp.join(osp.dirname(osp.realpath(__file__)), '..', 'data', args.dataset)
+        if args.dataset in ["Computers", "Photo"]:
+            dataset = Amazon(path, args.dataset, T.NormalizeFeatures()).shuffle()
+        elif args.dataset in ["Cora", "Citeseer", "Pubmed"]:
+            dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures()).shuffle()
+        elif args.dataset=='CoraFull':
+            dataset = CoraFull(path, transform=T.NormalizeFeatures()).shuffle()
+        # elif args.dataset=='Reddit':
+        #     dataset = Reddit(path, transform=T.NormalizeFeatures()).shuffle()
+        # elif args.dataset=='ppi':
+        #     dataset = PPI(path, transform=T.NormalizeFeatures()).shuffle()
 
         self.data = dataset[0]
 
-
-        # n=30
-        # e=40
-        # f=3
-        # c=12
-        # self.data = Data(x= torch.randn((n,f)),edge_index= torch.randint(0,n,(2,e)), 
-        #                 y= torch.randint(low=0, high = c,size=(n,)), train_mask = torch.randint(high=2, size=(n,)).bool(), 
-        #                 val_mask=torch.randint(high=2, size=(n,)).bool(), test_mask = torch.randint(high=2, size=(n,)).bool())
-
-
-        print(f"Nodes: {self.data.num_nodes}")
-        print(f"Edges: {self.data.num_edges}")
-        print(f"Features = {dataset.num_node_features}")
-        print(f"Classes = {dataset.num_classes}")
         
-
         self.n_class = dataset.num_classes
-        # self.n_class = c
         
         self.classes_in_task = {}
 
-        # self.n_tasks = 4
         self.n_tasks = args.n_tasks
         self.current_task = 0
 
         n_class_per_task = self.n_class // self.n_tasks
 
+        if args.dataset=='Computers':
+            count = defaultdict(list)
+            label = self.data.y.numpy()
+            labels= Counter(label)
+
+            for i,j in enumerate(self.data.y):
+                count[j.item()].append(i)
+            
+            self.data.train_mask=torch.zeros_like(self.data.y).bool()
+            self.data.val_mask=torch.zeros_like(self.data.y).bool()
+            self.data.test_mask=torch.zeros_like(self.data.y).bool()
+
+            for v in count.values():
+                self.data.train_mask[v[:200]]=True
+                self.data.val_mask[v[200:250]]=True
+                self.data.test_mask[v[250:]]=True
+
+        elif args.dataset=='CoraFull':
+            count = defaultdict(list)
+            _count = defaultdict(list)
+            n_class_per_task = 5
+            label = self.data.y.numpy()
+            labels= Counter(label)
+            labels = {k: v for k, v in labels.items() if v>150}
+
+            for i,j in enumerate(self.data.y):
+                if j.item() in labels.keys():
+                    count[j.item()].append(i)
+            
+            for k1,k2 in enumerate(count.keys()):
+                _count[k1] = count[k2]
+            del count
+
+            self.data.train_mask=torch.zeros_like(self.data.y).bool()
+            self.data.val_mask=torch.zeros_like(self.data.y).bool()
+            self.data.test_mask=torch.zeros_like(self.data.y).bool()
+
+            for v in _count.values():
+                self.data.train_mask[v[:100]]=True
+                self.data.val_mask[v[100:140]]=True
+                self.data.test_mask[v[140:]]=True
+
+        print(f"Nodes: {self.data.num_nodes}")
+        print(f"Edges: {self.data.num_edges}")
+        print(f"Features = {dataset.num_node_features}")
+
+        if args.dataset=='CoraFull':
+            print(f"Classes = {len(torch.unique(self.data.y[self.data.train_mask]))}")
+        else:
+            print(f"Classes = {dataset.num_classes}")
+        
         assert n_class_per_task >= 1, "Reduce the number of tasks in the args: n_tasks"
 
         for task_i in range(self.n_tasks):

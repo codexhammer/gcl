@@ -44,7 +44,7 @@ def _get_optimizer(name):
 class Trainer(object):
     """Manage the training process"""
 
-    def __init__(self, args,times):
+    def __init__(self, args,times,path):
         r"""
         Constructor for training algorithm.
         Build sub-model manager and controller.
@@ -70,6 +70,7 @@ class Trainer(object):
         self.controller_optim = controller_optimizer(self.controller.parameters(), lr=self.args.controller_lr)
 
         self.times = times
+        self.path=path
 
 
     def build_model(self):
@@ -103,7 +104,6 @@ class Trainer(object):
                                             cuda=self.args.cuda)
 
 
-
         self.train_gnn = Training(self.args) ### Changed
 
         if self.cuda:
@@ -111,35 +111,32 @@ class Trainer(object):
 
     def train(self):
         r"""
-        Each epoch consists of two phase:
-        - In the first phase, shared parameters are trained to exploration.
-        - In the second phase, the controller's parameters are trained.
+        In the first task, train the model WITHOUT the controller
+        In the next tasks, train the model WITH the controller
         """
         # 2. Training the controller parameters theta
         for task_no in tqdm(range(self.n_tasks)):
             
-            tqdm.write(f" Training Task number {task_no} ".center(200, "*"),end="\n\n\n")
+            tqdm.write(f" \n\nTraining Task number {task_no} ".center(20, "*"),end="\n\n\n")
             
             self.train_gnn.task_increment()
 
-            if task_no == 0:
-                self.train_init()
-            else:                
-                self.train_controller()
+            # if task_no == 0:
+            self.train_init()
+            # else:                
+            #     self.train_controller()
 
         print(f'\n\n All tasks completed successfully!')
 
-        self.save_model()
         acc_matrix = self.train_gnn.acc_matrix
-        result_file(self.args, acc_matrix, self.times)
+        result_file(self.args, acc_matrix, self.times,self.path)
 
 
     def train_init(self):        
         """
-            Train first task withput controller.
+            Train first task without controller.
         """
 
-        # _, val_score = self.train_gnn.train()
         _, val_score = self.train_gnn.train()
         logger.info(f"Task no. 0: Val_score: {val_score}")
 
@@ -249,8 +246,3 @@ class Trainer(object):
             raise NotImplementedError(f'Unkown entropy mode: {self.args.entropy_mode}')
 
         return rewards, hidden
-
-    def save_model(self):
-        torch.save(self.controller.state_dict(),
-                osp.join(f'data/', f'{self.args.dataset}',
-                f'{self.args.dataset}_{self.args.mp_nn}_{self.args.setting}_controller.pt'))
