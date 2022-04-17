@@ -210,7 +210,6 @@ class Training():
         self.model.train()
            
         dur = []
-        # min_val_loss = float("inf")
         val_acc_list = []
         model_val_acc = 0
         
@@ -224,9 +223,7 @@ class Training():
             
             train_loader = NeighborLoader(
                     self.data,
-                    # Sample 30 neighbors for each node for 2 iterations
-                    num_neighbors=[30] * 1,
-                    # Use a batch size of 128 for sampling training nodes
+                    num_neighbors=[30] * 1, # Sample 30 neighbors for each node for 2 iterations
                     batch_size=self.args.batch_size_nei,
                     input_nodes = self.train_task_nid
                     )
@@ -251,9 +248,7 @@ class Training():
                         
         val_loader = NeighborLoader(
         self.data,
-        # Sample 30 neighbors for each node for 2 iterations
-        num_neighbors=[30] * 1,
-        # Use a batch size of 128 for sampling training nodes
+        num_neighbors=[30] * 1,  # Sample 30 neighbors for each node for 2 iterations
         batch_size=self.args.batch_size_nei,
         input_nodes = self.val_task_nid,
         )
@@ -265,7 +260,6 @@ class Training():
 
             for batch_i,data_i in enumerate(val_loader):
                 data_i = data_i.to(self.device)
-            # data_eval = deepcopy(self.data).cuda()
                 val_loss, outputs = self.observe(data_i, mode='eval')
 
                 val_acc = evaluate(outputs, data_i.y[data_i.val_mask],self.current_task*self.class_per_task)
@@ -274,9 +268,6 @@ class Training():
                 tqdm.write("Validation Loss: {:.4f}  | Validation accuracy: {:.4f}%".format(
                                 val_loss, 100*val_acc))
 
-        # if val_loss < min_val_loss:  # and train_loss < min_train_loss
-        #     min_val_loss = val_loss
-        #     model_val_acc = val_acc
         model_val_acc = np.mean(val_acc_list)*100
 
         torch.cuda.empty_cache()
