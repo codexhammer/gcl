@@ -58,7 +58,7 @@ class Controller(torch.nn.Module):
         self.encoder = torch.nn.Embedding(num_total_tokens, controller_hid)
 
         # the core of controller
-        self.lstm = torch.nn.LSTMCell(controller_hid, controller_hid)
+        self.lstm = torch.nn.LSTM(controller_hid, controller_hid, num_layers =2)
 
         # build decoder
         self._decoders = torch.nn.ModuleDict()
@@ -108,8 +108,7 @@ class Controller(torch.nn.Module):
     def forward(self,
                 inputs,
                 hidden,
-                action_name,
-                is_embed):
+                action_name):
 
         embed = inputs
 
@@ -135,8 +134,8 @@ class Controller(torch.nn.Module):
         if batch_size < 1:
             raise Exception(f'Wrong batch_size: {batch_size} < 1')
 
-        inputs = torch.zeros([batch_size, self.controller_hid])
-        hidden = (torch.zeros([batch_size, self.controller_hid]), torch.zeros([batch_size, self.controller_hid]))
+        inputs = torch.zeros([1, batch_size, self.controller_hid])
+        hidden = (torch.zeros([2, batch_size, self.controller_hid]), torch.zeros([2, batch_size, self.controller_hid]))
         if self.is_cuda:
             inputs = inputs.cuda()
             hidden = (hidden[0].cuda(), hidden[1].cuda())
@@ -148,8 +147,7 @@ class Controller(torch.nn.Module):
 
             logits, hidden = self.forward(inputs,
                                           hidden,
-                                          action_name,
-                                          is_embed=(block_idx == 0))
+                                          action_name)
 
             probs = F.softmax(logits, dim=-1)
             log_prob = F.log_softmax(logits, dim=-1)

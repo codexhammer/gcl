@@ -111,6 +111,7 @@ class GraphLayer(nn.Module):
             x = self.gnn[i](x, edge_index)
             x = F.leaky_relu(x)
             x =  F.dropout(x, training=self.training)
+
         # for i in range(len(self.linear)):
         #     x = self.linear[i](x)
         #     x =  F.dropout(x, training=self.training)

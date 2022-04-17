@@ -1,23 +1,11 @@
 from __future__ import print_function
 
 import logging
-import os
-from collections import defaultdict
 from datetime import datetime
 
 import numpy as np
 import torch
 from torch.autograd import Variable
-
-
-class keydefaultdict(defaultdict):
-    def __missing__(self, key):
-        if self.default_factory is None:
-            raise KeyError(key)
-        else:
-            ret = self[key] = self.default_factory(key)
-            return ret
-
 
 ##########################
 # Torch
@@ -60,13 +48,6 @@ logger = get_logger()
 
 def get_time():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-
-def remove_file(path):
-    if os.path.exists(path):
-        logger.info("[*] Removed: {}".format(path))
-        os.remove(path)
-
 
 def to_item(x):
     """Converts x, possibly scalar and possibly tensor, to a Python scalar."""

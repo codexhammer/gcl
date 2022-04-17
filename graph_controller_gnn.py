@@ -7,14 +7,11 @@ import utils.tensor_utils as utils
 # not contains skip-connection
 class Controller(torch.nn.Module):
     def _construct_action(self, actions):
-        structure_list = []
-        for single_action in actions:
-            structure = []
-            for action, action_name in zip(single_action, self.action_list):
-                predicted_actions = self.search_space[action_name][action]
-                structure.append(predicted_actions)
-            structure_list.append(structure)
-        return structure_list
+        structure = []
+        for action, action_name in zip(actions, self.action_list):
+            predicted_actions = self.search_space[action_name][action]
+            structure.append(predicted_actions)
+        return structure
 
     def __init__(self, args, 
                 search_space_gnn,
@@ -58,6 +55,8 @@ class Controller(torch.nn.Module):
 
         # the core of controller
         self.lstm = torch.nn.LSTMCell(controller_hid, controller_hid)
+        # self.lstm = torch.nn.LSTM(controller_hid, controller_hid, num_layers =2)
+
 
         # build decoder
         self._decoders = torch.nn.ModuleDict()
@@ -98,20 +97,18 @@ class Controller(torch.nn.Module):
 
     def forward(self,
                 inputs,
-                hidden,
-                action_name,
-                is_embed):
+                action_name):
 
         embed = inputs
 
-        hx, cx = self.lstm(embed, hidden)
+        hx, _ = self.lstm(embed)
         logits = self._decoders[action_name](hx)
 
         logits /= self.softmax_temperature
 
         logits = (self.tanh_c * torch.tanh(logits))
 
-        return logits, (hx, cx)
+        return logits
 
     def action_index(self, action_name):
         key_names = self.search_space.keys()
@@ -119,56 +116,50 @@ class Controller(torch.nn.Module):
             if action_name == key:
                 return i
 
-    def sample(self, batch_size=1, with_details=False):
+    def sample(self):
 
-        if batch_size < 1:
-            raise Exception(f'Wrong batch_size: {batch_size} < 1')
+        inputs = torch.zeros(1, self.controller_hid)  #         inputs = torch.zeros([1, batch_size, self.controller_hid])
+        # hidden = (torch.zeros(self.controller_hid), torch.zeros(self.controller_hid))
+        #        hidden = (torch.zeros([2, batch_size, self.controller_hid]), torch.zeros([2, batch_size, self.controller_hid]))
 
-        inputs = torch.zeros([batch_size, self.controller_hid])
-        hidden = (torch.zeros([batch_size, self.controller_hid]), torch.zeros([batch_size, self.controller_hid]))
         if self.is_cuda:
             inputs = inputs.cuda()
-            hidden = (hidden[0].cuda(), hidden[1].cuda())
+            # hidden = (hidden[0].cuda(), hidden[1].cuda())
         entropies = []
         log_probs = []
         actions = []
         for block_idx, action_name in enumerate(self.action_list):
             decoder_index = self.action_index(action_name)
 
-            logits, hidden = self.forward(inputs,
-                                          hidden,
-                                          action_name,
-                                          is_embed=(block_idx == 0))
+            logits = self.forward(inputs, action_name).flatten()
 
-            probs = F.softmax(logits, dim=-1)
-            log_prob = F.log_softmax(logits, dim=-1)
+            probs = F.softmax(logits, dim=0)
+            log_prob = F.log_softmax(logits, dim=0)
 
-            entropy = -(log_prob * probs).sum(1, keepdim=False)
+            entropy = -(log_prob * probs).sum()
             action = probs.multinomial(num_samples=1).data
-            selected_log_prob = log_prob.gather(
-                1, utils.get_variable(action, requires_grad=False))
+            selected_log_prob = log_prob.gather(0,
+                 utils.get_variable(action, requires_grad=False))
 
             entropies.append(entropy)
-            log_probs.append(selected_log_prob[:, 0])
+            log_probs.append(selected_log_prob)
 
             inputs = utils.get_variable(
-                action[:, 0] + sum(self.num_tokens[:decoder_index]),
+                action + sum(self.num_tokens[:decoder_index]),
                 self.is_cuda,
                 requires_grad=False)
 
             inputs = self.encoder(inputs)
 
-            actions.append(action[:, 0])
+            actions.append(action)
 
-        actions = torch.stack(actions).transpose(0, 1)
+        actions = torch.cat(actions)
         dags = self._construct_action(actions)
 
-        if with_details:
-            return dags, torch.cat(log_probs), torch.cat(entropies)
+        return dags, torch.cat(log_probs), torch.stack(entropies)
 
-        return dags
 
-    def init_hidden(self, batch_size):
-        zeros = torch.zeros(batch_size, self.controller_hid)
-        return (utils.get_variable(zeros, self.is_cuda, requires_grad=False),
-                utils.get_variable(zeros.clone(), self.is_cuda, requires_grad=False))
+    # def init_hidden(self, batch_size):
+    #     zeros = torch.zeros(batch_size, self.controller_hid)
+    #     return (utils.get_variable(zeros, self.is_cuda, requires_grad=False),
+    #             utils.get_variable(zeros.clone(), self.is_cuda, requires_grad=False))

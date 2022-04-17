@@ -6,28 +6,11 @@ import torch
 
 import utils.tensor_utils as utils
 from utils.result import result_file 
-
+from copy import deepcopy
 from gnn_train import Training
 from tqdm import tqdm
 
-from gnn_test import Testing
-
-
-def discount(x, amount):
-    return scipy.signal.lfilter([1], [1, -amount], x[::-1], axis=0)[::-1]
-
-
-history = []
-
-
-def scale(value, last_k=10, scale_value=1):
-    '''
-    scale value into [-scale_value, scale_value], according last_k history
-    '''
-    max_reward = np.max(history[-last_k:])
-    if max_reward == 0:
-        return value
-    return scale_value / max_reward * value
+# from gnn_test import Testing
 
 
 def _get_optimizer(name):
@@ -44,12 +27,7 @@ class Trainer(object):
 
     def __init__(self, args,times,path):
         r"""
-        Constructor for training algorithm.
-        Build sub-model manager and controller.
-        Build optimizer and cross entropy loss for controller.
-
-        Args:
-            args: From command line, picked up by `argparse`.
+        Initialize controller and gnn parameters
         """
         self.args = args
         self.controller_step = 0  # counter for controller
@@ -57,18 +35,18 @@ class Trainer(object):
         self.epoch = 0
         self.start_epoch = 0
 
-        self.max_length = self.args.shared_rnn_max_length
         self.n_tasks = args.n_tasks
 
         self.train_gnn = None
         self.controller = None
-        self.build_model()  # build controller and sub-model
+        self.build_model()
 
         controller_optimizer = _get_optimizer(self.args.controller_optim)
         self.controller_optim = controller_optimizer(self.controller.parameters(), lr=self.args.controller_lr)
 
         self.times = times
         self.path=path
+        self.task_param = {}
 
 
     def build_model(self):
@@ -97,9 +75,9 @@ class Trainer(object):
         # build RNN controller
         from graph_controller_gnn import Controller
         self.controller = Controller(self.args, 
-                                            search_space_gnn = self.search_space_gnn,
-                                            action_list_gnn = self.action_list_gnn,                                               
-                                            cuda=self.args.cuda)
+                                    search_space_gnn = self.search_space_gnn,
+                                    action_list_gnn = self.action_list_gnn,                                               
+                                    cuda=self.args.cuda)
 
 
         self.train_gnn = Training(self.args) ### Changed
@@ -113,16 +91,21 @@ class Trainer(object):
         In the next tasks, train the model WITH the controller
         """
         # 2. Training the controller parameters theta
-        for task_no in tqdm(range(self.n_tasks)):
+        for self.task_no in tqdm(range(self.n_tasks)):
             
-            tqdm.write(f" \n\nTraining Task number {task_no} ".center(20, "*"),end="\n\n\n")
+            tqdm.write(f" \n\nTraining Task number {self.task_no} ".center(20, "*"),end="\n\n\n")
             
             self.train_gnn.task_increment()
 
-            # if task_no == 0:
-            self.train_gnn.train()
-            # else:                
-            #     self.train_controller()
+            if self.args.abl == 0 or self.args.abl == 1:
+                self.train_gnn.train()
+            else:
+                if self.task_no == 0:
+                    self.train_gnn.train()
+                    self.task_param[self.task_no] = self.train_gnn.model
+                else:
+                    self.task_param[self.task_no] = deepcopy(self.train_gnn.model)   
+                    self.train_controller()
 
         print(f'\n\n All tasks completed successfully!')
 
@@ -135,38 +118,28 @@ class Trainer(object):
             Train controller for subsequent tasks.
         """
         tqdm.write(f" Training controller ".center(200,'*'))
-        model = self.controller
-        model.train()
+        self.controller.train()
 
         baseline = None
-        adv_history = []
-        entropy_history = []
-        reward_history = []
 
-        hidden = self.controller.init_hidden(self.args.batch_size)
+        # hidden = self.controller.init_hidden(self.args.batch_size)
         total_loss = 0
+        best_reward = 0
 
         controller_tqdm = tqdm(range(self.args.controller_max_step), colour='yellow')
         for _ in controller_tqdm:
             controller_tqdm.set_description(f" Controller step ")
-            structure_list, log_probs, entropies = self.controller.sample(with_details=True)
+            structure_list, log_probs, entropies = self.controller.sample()
 
             # calculate reward
-            np_entropies = entropies.data.cpu().numpy()
-            results = self.get_reward(structure_list, np_entropies, hidden)
+            # np_entropies = entropies.data.cpu().numpy()
+
+            rewards = self.get_reward(structure_list, entropies)         # Reward fn.
+
             torch.cuda.empty_cache()
 
-            if results:  # has reward
-                rewards, hidden = results
-            else:
-                continue  # CUDA Error happens, drop structure and step into next iteration
-
-            # discount
-            if 1 > self.args.discount > 0:
-                rewards = discount(rewards, self.args.discount)
-
-            reward_history.extend(rewards)
-            entropy_history.extend(np_entropies)
+            if rewards is None:  # has reward
+                continue
 
             # moving average baseline
             if baseline is None:
@@ -174,17 +147,16 @@ class Trainer(object):
             else:
                 decay = self.args.ema_baseline_decay
                 baseline = decay * baseline + (1 - decay) * rewards
+            
+            if rewards>best_reward:
+                best_reward = rewards
+                self.task_param[self.task_no] = deepcopy(self.train_gnn.model)           
 
             adv = rewards - baseline
-            history.append(adv)
-            adv = scale(adv, scale_value=0.5)
-            adv_history.extend(adv)
 
             adv = utils.get_variable(adv, self.cuda, requires_grad=False)
             # policy loss
             loss = -log_probs * adv
-            if self.args.entropy_mode == 'regularizer':
-                loss -= self.args.entropy_coeff * entropies
 
             loss = loss.sum()  # or loss.mean()
 
@@ -193,7 +165,7 @@ class Trainer(object):
             loss.backward()
 
             if self.args.controller_grad_clip > 0:
-                torch.nn.utils.clip_grad_norm(model.parameters(),
+                torch.nn.utils.clip_grad_norm(self.controller.parameters(),
                                               self.args.controller_grad_clip)
             self.controller_optim.step()
 
@@ -202,36 +174,20 @@ class Trainer(object):
             self.controller_step += 1
             torch.cuda.empty_cache()
 
+        self.train_gnn.model = self.task_param[self.task_no]
+        self.train_gnn.train()
 
-    def get_reward(self, gnn_list, entropies, hidden):
+
+
+    def get_reward(self, gnn_list, entropies):
         """
         Computes the reward of a single sampled model on validation data.
         """
-        if not isinstance(entropies, np.ndarray):
-            entropies = entropies.data.cpu().numpy()
-        if isinstance(gnn_list, dict):
-            gnn_list = [gnn_list]
-        if isinstance(gnn_list[0], list) or isinstance(gnn_list[0], dict):
-            pass
-        else:
-            gnn_list = [gnn_list]  # when structure_list is one structure
+        reward = self.train_gnn.train(gnn_list)
 
-        reward_list = []
-        for gnn in gnn_list:
-            reward = self.train_gnn.train(gnn)
+        if reward is None:  # cuda error happened
+            return reward
 
-            if reward is None:  # cuda error happened
-                reward = 0
-            else:
-                reward = reward[1]
+        reward = reward + torch.sum(self.args.entropy_coeff * entropies)
 
-            reward_list.append(reward)
-
-        if self.args.entropy_mode == 'reward':
-            rewards = reward_list + self.args.entropy_coeff * entropies
-        elif self.args.entropy_mode == 'regularizer':
-            rewards = reward_list * np.ones_like(entropies)
-        else:
-            raise NotImplementedError(f'Unkown entropy mode: {self.args.entropy_mode}')
-
-        return rewards, hidden
+        return reward

@@ -7,15 +7,15 @@ from torch_geometric.loader import NeighborLoader
 
 from utils.buffer import Buffer
 from utils.load_data import DataLoader
-from utils.model_utils import TopAverage
+# from utils.model_utils import TopAverage
 from utils.score import evaluate, f1_score_calc
 
 from search_space import MacroSearchSpace
-import copy
+from copy import deepcopy
 from gnn_layer import GraphLayer
 from tqdm import tqdm
 
-from collections import defaultdict
+# from collections import defaultdict
 
 
 
@@ -38,7 +38,7 @@ class Training():
         self.classes_in_task = self.data_load.classes_in_task
         self.class_per_task = len(self.classes_in_task[0])
 
-        self.reward_manager = TopAverage(10)
+        # self.reward_manager = TopAverage(10)
         self.epochs = args.epochs
         self.lr = args.lr
 
@@ -48,8 +48,8 @@ class Training():
         self.alpha = args.alpha
         self.beta = args.beta
 
-        channels_gnn = copy.deepcopy(args.channels_gnn) # Enter the hidden layer values only
-        # channels_mlp = copy.deepcopy(args.channels_mlp) # Enter the hidden node values only
+        channels_gnn = deepcopy(args.channels_gnn) # Enter the hidden layer values only
+        # channels_mlp = deepcopy(args.channels_mlp) # Enter the hidden node values only
 
         channels_gnn.insert(0,num_feat)
         self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
@@ -104,7 +104,7 @@ class Training():
 
             for task_i in range(self.current_task+1):
                 _, test_mask = self.data_load.test_masking(task_i)
-                self.test_model(copy.deepcopy(self.data), test_mask, task_i)
+                self.test_model(deepcopy(self.data), test_mask, task_i)
 
         except RuntimeError as e:
             if "cuda" in str(e) or "CUDA" in str(e):
@@ -114,9 +114,9 @@ class Training():
             else:
                 raise e
         
-        reward = self.reward_manager.get_reward(val_acc)
+        # reward = self.reward_manager.get_reward(val_acc)
 
-        return reward, val_acc
+        return val_acc
     
     def test_model(self, data, test_mask, task_i):
         with torch.no_grad():
@@ -158,34 +158,34 @@ class Training():
                 logits = logits[data.train_mask]
                 loss = self.loss(logits, data.y[data.train_mask])
 
+            if self.args.abl == 1 or self.args.abl == 3:
+                if not self.buffer.is_empty() and self.current_task:
 
-            if not self.buffer.is_empty() and self.current_task:
+                    buf_data, buf_logits , task_no = self.buffer.get_data(
+                                                    self.args.minibatch_size, transform=None)
+                    buf_outputs = self.model(buf_data.x, buf_data.edge_index)
+                    
+                    if self.args.setting == 'task':
+                        buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                    else:
+                        buf_outputs = buf_outputs[buf_data.train_mask]
 
-                buf_data, buf_logits , task_no = self.buffer.get_data(
-                                                self.args.minibatch_size, transform=None)
-                buf_outputs = self.model(buf_data.x, buf_data.edge_index)
-                
-                if self.args.setting == 'task':
-                    buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
-                else:
-                    buf_outputs = buf_outputs[buf_data.train_mask]
+                    loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
+                    
+                    ## Alpha-beta
 
-                loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
-                
-                ## Alpha-beta
+                    buf_data, _, task_no = self.buffer.get_data(
+                        self.args.minibatch_size, transform=None)
+                    buf_outputs = self.model(buf_data.x, buf_data.edge_index)
 
-                buf_data, _, task_no = self.buffer.get_data(
-                    self.args.minibatch_size, transform=None)
-                buf_outputs = self.model(buf_data.x, buf_data.edge_index)
+                    if self.args.setting == 'task':
+                        buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+                        loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
+                    else:
+                        buf_outputs = buf_outputs[buf_data.train_mask]
+                        loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask])
 
-                if self.args.setting == 'task':
-                    buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
-                    loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
-                else:
-                    buf_outputs = buf_outputs[buf_data.train_mask]
-                    loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask])
-
-            self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
+                self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
                             
             loss.backward(retain_graph=True)
             self.optimizer.step()
@@ -265,7 +265,7 @@ class Training():
 
             for batch_i,data_i in enumerate(val_loader):
                 data_i = data_i.to(self.device)
-            # data_eval = copy.deepcopy(self.data).cuda()
+            # data_eval = deepcopy(self.data).cuda()
                 val_loss, outputs = self.observe(data_i, mode='eval')
 
                 val_acc = evaluate(outputs, data_i.y[data_i.val_mask],self.current_task*self.class_per_task)
