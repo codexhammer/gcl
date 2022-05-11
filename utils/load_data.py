@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.datasets import Planetoid, Amazon, Reddit, CoraFull, PPI
+from torch_geometric.datasets import Planetoid, Amazon, CoraFull
 import torch_geometric.transforms as T
 import os.path as osp
 import numpy as np
@@ -21,21 +21,14 @@ class DataLoader():
         #     dataset = PPI(path, transform=T.NormalizeFeatures()).shuffle()
 
         self.data = dataset[0]
-
-        
         self.n_class = dataset.num_classes
-        
         self.classes_in_task = {}
-
         self.n_tasks = args.n_tasks
         self.current_task = 0
-
         n_class_per_task = self.n_class // self.n_tasks
 
         if args.dataset=='Computers':
             count = defaultdict(list)
-            label = self.data.y.numpy()
-            labels= Counter(label)
 
             for i,j in enumerate(self.data.y):
                 count[j.item()].append(i)
@@ -50,8 +43,7 @@ class DataLoader():
                 self.data.test_mask[v[250:]]=True
 
         elif args.dataset=='CoraFull':
-            count = defaultdict(list)
-            _count = defaultdict(list)
+            count, _count  = defaultdict(list), defaultdict(list)
             n_class_per_task = 5
             label = self.data.y.numpy()
             labels= Counter(label)
@@ -120,10 +112,6 @@ class DataLoader():
             val_task_nid = np.nonzero(val_mask[1])
             val_task_nid = torch.flatten(val_task_nid)
             
-            # test_task_nid = np.nonzero(test_mask[1])
-            # test_task_nid = torch.flatten(test_task_nid)
-            
-            
             self.current_task += 1
             self.test_mask_info[current_task] = test_mask
 
@@ -131,39 +119,3 @@ class DataLoader():
     
     def test_masking(self, test_task_no):
         return self.test_mask_info[test_task_no]
-
-
-
-
-# from torch_geometric.loader import NeighborLoader
-# from torch_geometric.nn import Sequential, GCNConv
-
-
-
-# datas = DataLoader(args=None,dataset='Reddit')
-# data = datas.load_data()
-# print(data)
-
-# model = Sequential('x, edge_index', [
-#     (GCNConv(602, 64), 'x, edge_index -> x'),
-#     (GCNConv(64, 1), 'x, edge_index -> x')
-# ]).to('cuda:0')
-
-# for i,data_current in enumerate(datas):
-#     current_task, (train_mask, val_mask, test_mask, train_task_nid) = data_current
-#     for ep in range(2):
-#         print(f"Epoch no. = {ep}")
-#         loader = NeighborLoader(
-#         data,
-#         # Sample 30 neighbors for each node for 2 iterations
-#         num_neighbors=[30] * 2,
-#         # Use a batch size of 128 for sampling training nodes
-#         batch_size=200,
-#         input_nodes=train_task_nid,
-#         directed = False
-#         )
-#         print(f"Task no. = {i}")
-#         for i,dat in enumerate(loader):
-#             dat = dat.to('cuda:0')
-#             print(i, dat)
-#             print(model(dat.x, dat.edge_index))

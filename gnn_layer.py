@@ -68,10 +68,10 @@ class GraphLayer(nn.Module):
                 self.gnn[i] = GCNConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], bias=self.bias_gnn)
 
             elif self.mp_nn == "gat":
-                self.gnn.append(GATConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], heads = self.heads, bias=self.bias_gnn, concat=False))
+                self.gnn[i] = GATConv(in_channels = self.channels_gnn[i], out_channels = self.channels_gnn[i+1], heads = self.heads, bias=self.bias_gnn, concat=False)
 
             elif self.mp_nn == "sg":
-                self.gnn.append(SAGEConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn))
+                self.gnn[i] = SAGEConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn)
 
 
             with torch.no_grad():
@@ -79,11 +79,19 @@ class GraphLayer(nn.Module):
                     self.gnn[i].lin.weight[0:model_param["lin.weight"].shape[0] , 0:model_param["lin.weight"].shape[1]] = model_param["lin.weight"]
                     if self.bias_gnn:
                         self.gnn[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
+                        
                 elif self.mp_nn == "gat":
-                    raise Exception("Not implemented error")                 #  Implementation needed  
-                
+                    self.gnn[i].att_src[0,0:self.heads,0:model_param['att_src'].shape[2]] = model_param['att_src'][0,0:self.heads]
+                    self.gnn[i].att_dst[0,0:self.heads,0:model_param['att_dst'].shape[2]] = model_param['att_dst'][0,0:self.heads]
+                    self.gnn[i].lin_src.weight[0:model_param["lin_src.weight"].shape[0] , 0:model_param["lin_src.weight"].shape[1]] = model_param["lin_src.weight"]
+                    if self.bias_gnn:
+                        self.gnn[i].bias[0:model_param["bias"].shape[0]] = model_param["bias"]
+
                 elif self.mp_nn == "sg":
-                    raise Exception("Not implemented error")                 #  Implementation needed  
+                    self.gnn[i].lin_l.weight[0:model_param["lin_l.weight"].shape[0] , 0:model_param["lin_l.weight"].shape[1]] = model_param["lin_l.weight"]
+                    self.gnn[i].lin_r.weight[0:model_param["lin_r.weight"].shape[0] , 0:model_param["lin_r.weight"].shape[1]] = model_param["lin_r.weight"]
+                    if self.bias_gnn:
+                        self.gnn[i].lin_l.bias[0:model_param["lin_l.bias"].shape[0]] = model_param["lin_l.bias"]
                        
     # def weight_update_mlp(self, wgt_add):
     #     assert len(self.linear)-1 == len(wgt_add), "Match number of Linear layers and node additions"

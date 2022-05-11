@@ -6,7 +6,7 @@ def average_forgeting(n_tasks, score_matrix):
     backward = []
     for t in range(n_tasks-1):
         b = score_matrix[n_tasks-1][t]-score_matrix[t][t]
-        backward.append(round(b*100, 2))
+        backward.append(round(b, 2))
     mean_backward = round(np.mean(backward),2)
 
     return mean_backward

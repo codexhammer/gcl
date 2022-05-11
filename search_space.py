@@ -28,8 +28,8 @@
 class MacroSearchSpace():
     def __init__(self):
             self.search_space_gnn = {
-                'gnn_add_nodes': [8,9,10,11,12],
-                'gnn_del_nodes': [4,5, 6, 7, 8]
+                'gnn_add_nodes': [9,11,15,21,29],
+                'gnn_del_nodes': [1,2,5,8,9]
             }
 
 

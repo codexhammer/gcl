@@ -1,0 +1,42 @@
+Cora dataset
+
+Trial no. 0
+,Task 1,Task 2,Task 3
+Task 1,41.18,0.0,0.0
+Task 2,41.18,31.1,0.0
+Task 3,41.18,31.1,89.68
+
+	Average accuracy = 53.99
+	Average forgetting = 0.0
+Trial no. 1
+,Task 1,Task 2,Task 3
+Task 1,92.31,0.0,0.0
+Task 2,92.76,92.01,0.0
+Task 3,90.95,91.36,89.29
+
+	Average accuracy = 90.53
+	Average forgetting = -1.01
+Trial no. 2
+,Task 1,Task 2,Task 3
+Task 1,87.78,0.0,0.0
+Task 2,90.95,89.2,0.0
+Task 3,92.76,76.24,84.13
+
+	Average accuracy = 84.38
+	Average forgetting = -3.99
+Trial no. 3
+,Task 1,Task 2,Task 3
+Task 1,80.54,0.0,0.0
+Task 2,91.4,84.02,0.0
+Task 3,90.95,71.92,95.24
+
+	Average accuracy = 86.04
+	Average forgetting = -0.84
+Trial no. 4
+,Task 1,Task 2,Task 3
+Task 1,94.12,0.0,0.0
+Task 2,93.67,84.23,0.0
+Task 3,90.95,82.51,87.3
+
+	Average accuracy = 86.92
+	Average forgetting = -2.44

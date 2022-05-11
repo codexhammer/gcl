@@ -15,7 +15,7 @@ from copy import deepcopy
 from gnn_layer import GraphLayer
 from tqdm import tqdm
 
-# from collections import defaultdict
+from collections import defaultdict
 
 
 
@@ -23,7 +23,7 @@ class Training():
     def __init__(self, args):
 
         
-        self.device = torch.device('cuda' if args.cuda else 'cpu')
+        self.device = torch.device(f'cuda:{args.gpu_id}' if args.cuda else 'cpu')
         
         print("Dataset = ",args.dataset)
         self.data_load = DataLoader(args)
@@ -44,7 +44,7 @@ class Training():
 
         self.loss = nn.CrossEntropyLoss()
 
-        self.buffer = Buffer(args.buffer_size, self.device)
+        self.buffer = Buffer(args.buffer_size)
         self.alpha = args.alpha
         self.beta = args.beta
 
@@ -63,6 +63,8 @@ class Training():
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
         self.args = args
+        
+        self.temp_buf = []
 
         
     def task_increment(self):
@@ -163,6 +165,7 @@ class Training():
 
                     buf_data, buf_logits , task_no = self.buffer.get_data(
                                                     self.args.minibatch_size, transform=None)
+                    buf_data, buf_logits = buf_data.to(self.device), buf_logits.to(self.device)
                     buf_outputs = self.model(buf_data.x, buf_data.edge_index)
                     
                     if self.args.setting == 'task':
@@ -176,6 +179,7 @@ class Training():
 
                     buf_data, _, task_no = self.buffer.get_data(
                         self.args.minibatch_size, transform=None)
+                    buf_data, buf_logits = buf_data.to(self.device), buf_logits.to(self.device)
                     buf_outputs = self.model(buf_data.x, buf_data.edge_index)
 
                     if self.args.setting == 'task':
@@ -186,6 +190,9 @@ class Training():
                         loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask])
 
                 self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
+                
+                # self.temp_buf.append((data, logits.detach()))
+
                             
             loss.backward(retain_graph=True)
             self.optimizer.step()
@@ -213,7 +220,6 @@ class Training():
         val_acc_list = []
         model_val_acc = 0
         
-
         t0 = time.time()
         epochs = tqdm(range(self.epochs), desc = "Epoch", position=0, colour='green')
 
@@ -272,8 +278,25 @@ class Training():
 
         torch.cuda.empty_cache()
 
-            
+        # self.prev_buffer()
+        # self.recalculate_buffer()
+    
         return model_val_acc
+
+
+    def recalculate_buffer(self):
+        for i, (buf_data, _ , task_no) in enumerate(self.buffer.buffer_list):
+            buf_outputs = self.model(buf_data.x, buf_data.edge_index).detach()
+            if self.args.setting == 'task':
+                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
+            else:
+                buf_outputs = buf_outputs[buf_data.train_mask]
+            self.buffer.buffer_list[i] = (buf_data.cpu(), buf_outputs.cpu(), task_no)
+    
+    def prev_buffer(self):
+        for (data, logits) in self.temp_buf:
+            self.buffer.add_data(data, logits=logits, task_no = self.current_task)
+        self.temp_buf = []
 
 
         # self.buffer_joint = defaultdict(list)

@@ -1,10 +1,6 @@
-import os.path as osp
-
-import numpy as np
-import scipy.signal
 import torch
 
-import utils.tensor_utils as utils
+import utils.model_utils as utils
 from utils.result import result_file 
 from copy import deepcopy
 from gnn_train import Training
@@ -83,7 +79,7 @@ class Trainer(object):
         self.train_gnn = Training(self.args) ### Changed
 
         if self.cuda:
-            self.controller.cuda()
+            self.controller.cuda(self.args.gpu_id)
 
     def train(self):
         r"""
@@ -121,8 +117,6 @@ class Trainer(object):
         self.controller.train()
 
         baseline = None
-
-        # hidden = self.controller.init_hidden(self.args.batch_size)
         total_loss = 0
         best_reward = 0
 
@@ -131,30 +125,27 @@ class Trainer(object):
             controller_tqdm.set_description(f" Controller step ")
             structure_list, log_probs, entropies = self.controller.sample()
 
-            # calculate reward
-            # np_entropies = entropies.data.cpu().numpy()
-
-            rewards = self.get_reward(structure_list, entropies)         # Reward fn.
+            reward = self.get_reward(structure_list, entropies)         # Reward fn.
 
             torch.cuda.empty_cache()
 
-            if rewards is None:  # has reward
+            if reward is None:  # has reward
                 continue
 
             # moving average baseline
             if baseline is None:
-                baseline = rewards
+                baseline = reward
             else:
                 decay = self.args.ema_baseline_decay
-                baseline = decay * baseline + (1 - decay) * rewards
+                baseline = decay * baseline + (1 - decay) * reward
             
-            if rewards>best_reward:
-                best_reward = rewards
+            if reward>best_reward:
+                best_reward = reward
                 self.task_param[self.task_no] = deepcopy(self.train_gnn.model)           
 
-            adv = rewards - baseline
+            adv = reward - baseline
 
-            adv = utils.get_variable(adv, self.cuda, requires_grad=False)
+            adv = utils.get_variable(adv, self.cuda, gpu = self.args.gpu_id, requires_grad=False)
             # policy loss
             loss = -log_probs * adv
 
@@ -188,6 +179,6 @@ class Trainer(object):
         if reward is None:  # cuda error happened
             return reward
 
-        reward = reward + torch.sum(self.args.entropy_coeff * entropies)
+        reward = reward - torch.sum(self.args.entropy_coeff * entropies)
 
         return reward

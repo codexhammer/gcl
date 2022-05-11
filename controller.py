@@ -46,7 +46,8 @@ class Controller(torch.nn.Module):
         for key in self.search_space:
             self.num_tokens.append(len(self.search_space[key]))
 
-        self.encoder = torch.nn.Embedding(sum(self.num_tokens), controller_hid)
+        num_total_tokens = sum(self.num_tokens)  # count action type
+        self.encoder = torch.nn.Embedding(num_total_tokens, controller_hid)
 
         # the core of controller
         self.lstm = torch.nn.LSTMCell(controller_hid, controller_hid)
@@ -56,7 +57,9 @@ class Controller(torch.nn.Module):
         # build decoder
         self._decoders = torch.nn.ModuleDict()
         for key in self.search_space:
-            self._decoders[key] = torch.nn.Linear(controller_hid, len(self.search_space[key]))
+            size = len(self.search_space[key])
+            decoder = torch.nn.Linear(controller_hid, size)
+            self._decoders[key] = decoder
         
         self.args = args
 

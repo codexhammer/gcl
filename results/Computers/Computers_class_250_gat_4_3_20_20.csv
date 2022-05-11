@@ -1,0 +1,52 @@
+Computers dataset
+
+Trial no. 0
+,Task 1,Task 2,Task 3,Task 4,Task 5
+Task 1,8.95,0.0,0.0,0.0,0.0
+Task 2,0.14,68.68,0.0,0.0,0.0
+Task 3,0.05,98.83,1.15,0.0,0.0
+Task 4,0.0,99.38,1.15,0.0,0.0
+Task 5,2.17,98.83,1.15,0.0,0.0
+
+	Average accuracy = 20.43
+	Average forgetting = 5.84
+Trial no. 1
+,Task 1,Task 2,Task 3,Task 4,Task 5
+Task 1,8.95,0.0,0.0,0.0,0.0
+Task 2,2.98,95.67,0.0,0.0,0.0
+Task 3,0.0,96.43,1.15,0.0,0.0
+Task 4,0.0,99.31,1.15,0.0,0.0
+Task 5,0.05,99.24,1.15,0.0,0.0
+
+	Average accuracy = 20.09
+	Average forgetting = -1.33
+Trial no. 2
+,Task 1,Task 2,Task 3,Task 4,Task 5
+Task 1,8.95,0.0,0.0,0.0,0.0
+Task 2,25.02,96.91,0.0,0.0,0.0
+Task 3,77.77,99.45,0.0,0.0,0.0
+Task 4,77.77,99.45,0.0,0.0,0.0
+Task 5,65.98,98.63,0.0,0.0,2.05
+
+	Average accuracy = 33.33
+	Average forgetting = 14.69
+Trial no. 3
+,Task 1,Task 2,Task 3,Task 4,Task 5
+Task 1,8.95,0.0,0.0,0.0,0.0
+Task 2,0.0,97.6,0.0,0.0,0.0
+Task 3,0.1,99.24,1.15,0.0,0.0
+Task 4,0.0,97.94,1.15,0.0,0.0
+Task 5,3.13,97.18,1.15,0.0,0.0
+
+	Average accuracy = 20.29
+	Average forgetting = -1.56
+Trial no. 4
+,Task 1,Task 2,Task 3,Task 4,Task 5
+Task 1,8.95,0.0,0.0,0.0,0.0
+Task 2,0.1,97.8,0.0,0.0,0.0
+Task 3,0.1,99.11,1.15,0.0,0.0
+Task 4,0.14,98.63,1.15,0.0,0.0
+Task 5,0.38,98.49,1.15,0.0,0.0
+
+	Average accuracy = 20.0
+	Average forgetting = -1.97

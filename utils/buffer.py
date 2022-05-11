@@ -20,24 +20,19 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
 
 
 class Buffer:
-    def __init__(self, buffer_size=6000, device = "cuda"):
+    def __init__(self, buffer_size=6000):
         self.buffer_size = buffer_size
-        self.device = device
         self.num_seen_examples = 0
         self.buffer_list = [None]*buffer_size
 
 
     def add_data(self, data, logits, task_no):
-
         index = reservoir(self.num_seen_examples, self.buffer_size)
         self.num_seen_examples += 1
         if index >= 0:
-            data = data.to(self.device)
-            logits = logits.to(self.device)
             self.buffer_list[index] = (data,logits, task_no)
 
     def get_data(self, size: int, transform: transforms=None):
-        
         if size > min(self.num_seen_examples, self.buffer_size):
             size = min(self.num_seen_examples, self.buffer_size)
 
@@ -47,7 +42,6 @@ class Buffer:
         return [self.buffer_list[i] for i in choice][0]  # May need change here!
 
     def is_empty(self) -> bool:
-        
         if self.num_seen_examples == 0:
             return True
         else:

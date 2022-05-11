@@ -1,0 +1,42 @@
+Citeseer dataset
+
+Trial no. 0
+,Task 1,Task 2,Task 3
+Task 1,76.06,0.0,0.0
+Task 2,54.44,84.95,0.0
+Task 3,57.53,85.92,86.93
+
+	Average accuracy = 76.79
+	Average forgetting = -8.78
+Trial no. 1
+,Task 1,Task 2,Task 3
+Task 1,70.27,0.0,0.0
+Task 2,52.9,85.68,0.0
+Task 3,48.26,83.98,87.84
+
+	Average accuracy = 73.36
+	Average forgetting = -11.86
+Trial no. 2
+,Task 1,Task 2,Task 3
+Task 1,61.39,0.0,0.0
+Task 2,67.57,87.38,0.0
+Task 3,49.81,86.89,85.71
+
+	Average accuracy = 74.14
+	Average forgetting = -6.04
+Trial no. 3
+,Task 1,Task 2,Task 3
+Task 1,44.4,0.0,0.0
+Task 2,56.76,87.14,0.0
+Task 3,64.48,88.35,87.23
+
+	Average accuracy = 80.02
+	Average forgetting = 10.64
+Trial no. 4
+,Task 1,Task 2,Task 3
+Task 1,35.14,0.0,0.0
+Task 2,31.66,85.44,0.0
+Task 3,29.73,87.86,85.41
+
+	Average accuracy = 67.67
+	Average forgetting = -1.5
