@@ -130,7 +130,6 @@ class Training():
             if self.args.setting == 'task':
                 outputs = outputs[test_mask][:,self.classes_in_task[task_i]]
                 labels = data.y[test_mask]
-                # acc = f1_score_calc(outputs, labels, task_i*self.class_per_task)
                 acc = evaluate(outputs, labels, task_i*self.class_per_task)
             else:
                 outputs = outputs[test_mask]
