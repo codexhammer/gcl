@@ -7,8 +7,7 @@ from torch_geometric.loader import NeighborLoader
 
 from utils.buffer import Buffer
 from utils.load_data import DataLoader
-# from utils.model_utils import TopAverage
-from utils.score import evaluate, f1_score_calc
+from utils.score import evaluate
 
 from search_space import MacroSearchSpace
 from copy import deepcopy
@@ -38,7 +37,6 @@ class Training():
         self.classes_in_task = self.data_load.classes_in_task
         self.class_per_task = len(self.classes_in_task[0])
 
-        # self.reward_manager = TopAverage(10)
         self.epochs = args.epochs
         self.lr = args.lr
 
@@ -55,9 +53,6 @@ class Training():
         self.acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
 
         self.model = GraphLayer(channels_gnn,  num_class=num_class, heads=args.heads, mp_nn=args.mp_nn, channels_mlp=None)
-        # if torch.cuda.device_count() > 1:
-        #     print("Parallel GPUs ", torch.cuda.device_count())
-        #     self.model = nn.DataParallel(self.model)
         self.model.to(self.device)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
@@ -115,9 +110,7 @@ class Training():
                 torch.cuda.empty_cache()
             else:
                 raise e
-        
-        # reward = self.reward_manager.get_reward(val_acc)
-
+    
         return val_acc
     
     def test_model(self, data, test_mask, task_i):
@@ -134,7 +127,6 @@ class Training():
             else:
                 outputs = outputs[test_mask]
                 labels = data.y[test_mask]
-                # acc = f1_score_calc(outputs, labels)
                 acc = evaluate(outputs, labels)
 
         self.acc_matrix[self.current_task][task_i] = np.round(acc*100,2)
@@ -189,10 +181,7 @@ class Training():
                         loss += self.args.beta * self.loss(buf_outputs, buf_data.y[buf_data.train_mask])
 
                 self.buffer.add_data(data, logits=logits.data, task_no = self.current_task)
-                
-                # self.temp_buf.append((data, logits.detach()))
-
-                            
+                                            
             loss.backward(retain_graph=True)
             self.optimizer.step()
 
@@ -228,7 +217,7 @@ class Training():
             
             train_loader = NeighborLoader(
                     self.data,
-                    num_neighbors=[30] * 1, # Sample 30 neighbors for each node for 2 iterations
+                    num_neighbors=[30] * 1,
                     batch_size=self.args.batch_size_nei,
                     input_nodes = self.train_task_nid
                     )
@@ -253,7 +242,7 @@ class Training():
                         
         val_loader = NeighborLoader(
         self.data,
-        num_neighbors=[30] * 1,  # Sample 30 neighbors for each node for 2 iterations
+        num_neighbors=[30] * 1, 
         batch_size=self.args.batch_size_nei,
         input_nodes = self.val_task_nid,
         )
@@ -276,26 +265,9 @@ class Training():
         model_val_acc = np.mean(val_acc_list)*100
 
         torch.cuda.empty_cache()
-
-        # self.prev_buffer()
-        # self.recalculate_buffer()
     
         return model_val_acc
 
-
-    def recalculate_buffer(self):
-        for i, (buf_data, _ , task_no) in enumerate(self.buffer.buffer_list):
-            buf_outputs = self.model(buf_data.x, buf_data.edge_index).detach()
-            if self.args.setting == 'task':
-                buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
-            else:
-                buf_outputs = buf_outputs[buf_data.train_mask]
-            self.buffer.buffer_list[i] = (buf_data.cpu(), buf_outputs.cpu(), task_no)
-    
-    def prev_buffer(self):
-        for (data, logits) in self.temp_buf:
-            self.buffer.add_data(data, logits=logits, task_no = self.current_task)
-        self.temp_buf = []
 
 
         # self.buffer_joint = defaultdict(list)

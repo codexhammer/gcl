@@ -15,10 +15,6 @@ class DataLoader():
             dataset = Planetoid(path, args.dataset, transform=T.NormalizeFeatures()).shuffle()
         elif args.dataset=='CoraFull':
             dataset = CoraFull(path, transform=T.NormalizeFeatures()).shuffle()
-        # elif args.dataset=='Reddit':
-        #     dataset = Reddit(path, transform=T.NormalizeFeatures()).shuffle()
-        # elif args.dataset=='ppi':
-        #     dataset = PPI(path, transform=T.NormalizeFeatures()).shuffle()
 
         self.data = dataset[0]
         self.n_class = dataset.num_classes
