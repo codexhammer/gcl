@@ -34,7 +34,7 @@ def register_default_args(parser):
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--entropy_coeff', type=float, default=1e-4)
     parser.add_argument('--ema_baseline_decay', type=float, default=0.95)
-    parser.add_argument('--controller_max_step', type=int, default=3, 
+    parser.add_argument('--controller_max_step', type=int, default=4, 
                                     help='step for controller parameters')
     parser.add_argument('--controller_optim', type=str, default='adam')
     parser.add_argument('--controller_lr', type=float, default=3.5e-4,
