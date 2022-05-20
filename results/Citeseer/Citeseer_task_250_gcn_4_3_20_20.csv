@@ -2,41 +2,41 @@ Citeseer dataset
 
 Trial no. 0
 ,Task 1,Task 2,Task 3
-Task 1,49.42,0.0,0.0
-Task 2,69.88,88.59,0.0
-Task 3,68.34,88.35,85.71
+Task 1,73.36,0.0,0.0
+Task 2,74.13,87.62,0.0
+Task 3,72.2,82.52,83.89
 
-	Average accuracy = 80.8
-	Average forgetting = 9.34
+	Average accuracy = 79.54
+	Average forgetting = -3.13
 Trial no. 1
 ,Task 1,Task 2,Task 3
-Task 1,31.27,0.0,0.0
-Task 2,72.2,87.14,0.0
-Task 3,66.8,85.68,86.93
+Task 1,72.2,0.0,0.0
+Task 2,71.04,87.14,0.0
+Task 3,74.52,83.74,83.89
 
-	Average accuracy = 79.8
-	Average forgetting = 17.04
+	Average accuracy = 80.72
+	Average forgetting = -0.54
 Trial no. 2
 ,Task 1,Task 2,Task 3
-Task 1,29.73,0.0,0.0
-Task 2,30.12,87.86,0.0
-Task 3,29.73,79.61,85.41
+Task 1,72.97,0.0,0.0
+Task 2,75.29,87.14,0.0
+Task 3,74.13,81.07,82.37
 
-	Average accuracy = 64.92
-	Average forgetting = -4.12
+	Average accuracy = 79.19
+	Average forgetting = -2.46
 Trial no. 3
 ,Task 1,Task 2,Task 3
-Task 1,59.07,0.0,0.0
-Task 2,74.52,88.11,0.0
-Task 3,74.9,86.65,85.71
+Task 1,71.04,0.0,0.0
+Task 2,55.21,87.86,0.0
+Task 3,52.9,82.52,86.93
 
-	Average accuracy = 82.42
-	Average forgetting = 7.18
+	Average accuracy = 74.12
+	Average forgetting = -11.74
 Trial no. 4
 ,Task 1,Task 2,Task 3
-Task 1,63.71,0.0,0.0
-Task 2,69.88,87.38,0.0
-Task 3,64.48,81.07,87.23
+Task 1,72.2,0.0,0.0
+Task 2,66.02,82.77,0.0
+Task 3,72.97,77.43,84.8
 
-	Average accuracy = 77.59
-	Average forgetting = -2.77
+	Average accuracy = 78.4
+	Average forgetting = -2.28

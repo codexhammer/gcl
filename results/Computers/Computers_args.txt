@@ -4,7 +4,6 @@
   "random_seed": 123,
   "cuda": true,
   "n_tasks": 5,
-  "batch_size": 64,
   "entropy_coeff": 0.0001,
   "ema_baseline_decay": 0.95,
   "controller_max_step": 4,

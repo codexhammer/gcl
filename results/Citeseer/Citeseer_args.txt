@@ -1,10 +1,9 @@
 {
   "dataset": "Citeseer",
-  "setting": "class",
+  "setting": "task",
   "random_seed": 123,
-  "cuda": true,
+  "cuda": false,
   "n_tasks": 3,
-  "batch_size": 64,
   "entropy_coeff": 0.0001,
   "ema_baseline_decay": 0.95,
   "controller_max_step": 4,
@@ -21,8 +20,8 @@
     20,
     20
   ],
-  "mp_nn": "sg",
-  "batch_size_nei": 16,
+  "mp_nn": "gcn",
+  "batch_size_nei": 2,
   "epochs": 250,
   "heads": 2,
   "lr": 0.0001,

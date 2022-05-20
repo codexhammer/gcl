@@ -12,10 +12,10 @@ Trial no. 1
 ,Task 1,Task 2,Task 3
 Task 1,38.22,0.0,0.0
 Task 2,29.73,71.6,0.0
-Task 3,43.63,47.57,85.41
+Task 3,29.73,66.75,86.02
 
-	Average accuracy = 58.87
-	Average forgetting = -9.31
+	Average accuracy = 60.83
+	Average forgetting = -6.67
 Trial no. 2
 ,Task 1,Task 2,Task 3
 Task 1,52.9,0.0,0.0

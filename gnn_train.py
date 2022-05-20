@@ -14,7 +14,6 @@ from copy import deepcopy
 from gnn_layer import GraphLayer
 from tqdm import tqdm
 
-from collections import defaultdict
 
 
 
@@ -267,24 +266,3 @@ class Training():
         torch.cuda.empty_cache()
     
         return model_val_acc
-
-
-
-        # self.buffer_joint = defaultdict(list)
-        # self.buf_size = 100
-            # r''' Activate this block for joint train'''
-            # for i in range(self.current_task):
-            #     ind = np.random.randint(low=0, high=len(self.buffer_joint[i]))
-            #     buf_data, _ , task_no = self.buffer_joint[i][ind]
-            #     buf_outputs = self.model(buf_data.x, buf_data.edge_index)
-
-            #     if self.args.setting == 'task':
-            #         buf_outputs = buf_outputs[buf_data.train_mask][:,self.classes_in_task[task_no]]
-            #         loss += self.loss(buf_outputs, buf_data.y[buf_data.train_mask]-task_no*self.class_per_task)
-            #     else:
-            #         buf_outputs = buf_outputs[buf_data.train_mask]
-            #         loss += self.loss(buf_outputs, buf_data.y[buf_data.train_mask])
-            
-            # if len(self.buffer_joint[self.current_task])<self.buf_size:
-            #     self.buffer_joint[self.current_task].append((data, logits.data, self.current_task))
-            # r'''Ends here'''

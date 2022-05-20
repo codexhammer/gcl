@@ -20,18 +20,17 @@ def build_args():
 
 def register_default_args(parser):
 
-    parser.add_argument("--dataset", type=str, default="CoraFull", required=False, 
+    parser.add_argument("--dataset", type=str, default="Cora", required=False, 
                                         choices = ['Cora','CoraFull','Computers','Citeseer'] ,help="The input dataset.")
     parser.add_argument('--setting', type=str, default='task', choices=['task','class'], help='Type of continual learning')
     
     parser.add_argument('--random_seed', type=int, default=123)
-    parser.add_argument("--cuda", type=bool, default=True, required=False,
+    parser.add_argument("--cuda", type=bool, default=False, required=False,
                         help="Set True for cuda")
     parser.add_argument('--n_tasks', type=int, default=4)
 
     # Controller
 
-    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--entropy_coeff', type=float, default=1e-4)
     parser.add_argument('--ema_baseline_decay', type=float, default=0.95)
     parser.add_argument('--controller_max_step', type=int, default=4, 
@@ -73,31 +72,12 @@ def main(args):
 
     if args.cuda and torch.cuda.is_available():  # cuda is  available
         args.cuda = True
-        # os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
-        # os.environ["CUDA_VISIBLE_DEVICES"]=args.gpu_id
         print("\n\nTraining with cuda...\n")
     else:
         args.cuda = False
         print("\n\nTraining with cpu...\n")
-    
 
-    # for set in ['task', 'class']:
-    #     args.setting = set
-
-    #     for dat in ['Cora', 'Citeseer', 'CoraFull', 'Computers']:
-    #         args.dataset = dat
-
-    #         if args.setting=='task':
-    #             print('Task-IL setting')
-    #         elif args.setting=='class':
-    #             print('Class-IL setting')
-    #         else:
-    #             raise Exception('Check IL setting')
-
-    # args.epochs = 2
-    # args.controller_max_step = 1
-
-            # Sanity check
+    # Sanity check
     if not args.task_override:
         if args.dataset == "Cora":
             args.n_tasks = 3

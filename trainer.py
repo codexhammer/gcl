@@ -1,3 +1,4 @@
+from cmath import inf
 import torch
 
 import utils.model_utils as utils
@@ -5,8 +6,6 @@ from utils.result import result_file
 from copy import deepcopy
 from gnn_train import Training
 from tqdm import tqdm
-
-# from gnn_test import Testing
 
 
 def _get_optimizer(name):
@@ -46,25 +45,9 @@ class Trainer(object):
 
 
     def build_model(self):
-        
-
-        # from search_space import MacroSearchSpace
-        # search_space_cls = MacroSearchSpace()
-        # self.search_space_gnn, self.search_space_mlp = search_space_cls.get_search_space()
-        # self.action_list_gnn, self.action_list_mlp = search_space_cls.generate_action_list(len(self.args.channels_gnn),len(self.args.channels_mlp))
-        # # build RNN controller
-        # from graph_controller import Controller
-        # self.controller = Controller(self.args, 
-        #                                     search_space_gnn = self.search_space_gnn,
-        #                                     search_space_mlp = self.search_space_mlp,
-        #                                     action_list_gnn = self.action_list_gnn,
-        #                                     action_list_mlp = self.action_list_mlp,                                                   
-        #                                     cuda=self.args.cuda)
-
-
-
 
         from search_space import MacroSearchSpace
+
         search_space_cls = MacroSearchSpace()
         self.search_space_gnn = search_space_cls.get_search_space()
         self.action_list_gnn = search_space_cls.generate_action_list(len(self.args.channels_gnn))
@@ -118,7 +101,7 @@ class Trainer(object):
 
         baseline = None
         total_loss = 0
-        best_reward = 0
+        best_reward = -float('inf')
 
         controller_tqdm = tqdm(range(self.args.controller_max_step), colour='yellow')
         for _ in controller_tqdm:
