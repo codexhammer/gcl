@@ -8,4 +8,4 @@
  2. Pytorch version:  1.8.0  ( conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=10.2 -c pytorch )
  3. Pytorch-geometric version: 2.0.1  ( conda install pyg -c pyg -c conda-forge )
 
- Disclaimer: This code is inspired from [here](https://github.com/GraphNAS/GraphNAS)
+ Disclaimer: This code is inspired from [here](https://github.com/GraphNAS/GraphNAS). For the comparative baselines, refer [here](https://github.com/hhliu79/TWP).
