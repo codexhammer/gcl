@@ -9,3 +9,23 @@
  3. Pytorch-geometric version: 2.0.1  ( conda install pyg -c pyg -c conda-forge )
 
  Disclaimer: This code is inspired from [here](https://github.com/GraphNAS/GraphNAS). For the comparative baselines, refer [here](https://github.com/hhliu79/TWP).
+
+ Cite our paper to use this code:
+
+```yaml
+ @misc{https://doi.org/10.48550/arxiv.2209.01556,
+  doi = {10.48550/ARXIV.2209.01556},
+  
+  url = {https://arxiv.org/abs/2209.01556},
+  
+  author = {Rakaraddi, Appan and Lam, Siew Kei and Pratama, Mahardhika and De Carvalho, Marcus},
+    
+  title = {Reinforced Continual Learning for Graphs},
+  
+  publisher = {arXiv},
+  
+  year = {2022},
+  
+  copyright = {Creative Commons Attribution Non Commercial Share Alike 4.0 International}
+}
+```
