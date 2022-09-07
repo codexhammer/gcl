@@ -1,5 +1,4 @@
 import numpy as np
-from torchvision import transforms
 
 
 def reservoir(num_seen_examples: int, buffer_size: int) -> int:
@@ -32,7 +31,7 @@ class Buffer:
         if index >= 0:
             self.buffer_list[index] = (data,logits, task_no)
 
-    def get_data(self, size: int, transform: transforms=None):
+    def get_data(self, size: int):
         if size > min(self.num_seen_examples, self.buffer_size):
             size = min(self.num_seen_examples, self.buffer_size)
 
