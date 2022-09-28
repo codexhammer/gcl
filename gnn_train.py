@@ -55,15 +55,10 @@ class Training():
         self.model.to(self.device)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
-
         self.args = args
-        
-        self.temp_buf = []
 
-        
     def task_increment(self):
         self.current_task, (self.train_task_nid, self.val_task_nid) = next(self.task_iter)
-
 
     def build_hidden_layers(self, actions):
         if actions:
@@ -72,13 +67,10 @@ class Training():
             action_list_gnn = search_space_cls.generate_action_list(len(self.args.channels_gnn))
             actions_gnn = actions[:len(action_list_gnn)]
             # actions_mlp = actions[len(action_list_gnn):]
-
             self.actions_gnn = list(map(lambda x,y:x-y,actions_gnn[::2],actions_gnn[1::2]))
             # self.actions_mlp = list(map(lambda x,y:x-y,actions_mlp[::2],actions_mlp[1::2]))
-
             # self.model.weight_update(self.actions_gnn,self.actions_mlp)
             self.model.weight_update(self.actions_gnn)
-
             self.model.to(self.device)
             self.optimizer = torch.optim.Adam(self.model.parameters(),lr=self.lr)
             print('**')
@@ -96,7 +88,6 @@ class Training():
             val_acc = self.run_model()
 
             tqdm.write(f" Testing Task number {self.current_task} ".center(200, "*"),end="\n")
-
 
             for task_i in range(self.current_task+1):
                 _, test_mask = self.data_load.test_masking(task_i)
