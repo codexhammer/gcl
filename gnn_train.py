@@ -4,11 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.loader import NeighborLoader
-
 from utils.buffer import Buffer
 from utils.load_data import DataLoader
 from utils.score import evaluate
-
 from search_space import MacroSearchSpace
 from copy import deepcopy
 from gnn_layer import GraphLayer
