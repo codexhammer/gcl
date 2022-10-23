@@ -15,8 +15,6 @@ from gnn_layer import GraphLayer
 from tqdm import tqdm
 
 
-
-
 class Training():
     def __init__(self, args):
 
