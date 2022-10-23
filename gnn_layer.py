@@ -35,25 +35,20 @@ class GraphLayer(nn.Module):
             
             else:
                 raise Exception("Check GNN type!")
-
-        
         # self.channels_mlp = channels_mlp        
         # self.bias_mlp = bias_mlp
         # self.num_class = num_class
         # self.linear = nn.ModuleList()
         # self.channels_mlp.insert(0,channels_gnn[-1])
         # self.channels_mlp.append(num_class)
-
         # for channel_no in range(0,len(channels_mlp)-1):
         #     self.linear.append(nn.Linear(channels_mlp[channel_no],channels_mlp[channel_no+1], bias=bias_mlp))
         
-
     def model_parameters(self, model):
         return model.state_dict()
 
     def weight_update_gnn(self, wgt_add):
         assert len(self.gnn) -1== len(wgt_add), "Match number of GNNs and feature additions"
-
 
         # for i in range(1,len(self.channels_gnn)):
         #     self.channels_gnn[i] = self.channels_gnn[i] + wgt_add[i-1]
@@ -72,7 +67,6 @@ class GraphLayer(nn.Module):
 
             elif self.mp_nn == "sg":
                 self.gnn[i] = SAGEConv(in_channels=self.channels_gnn[i], out_channels=self.channels_gnn[i+1], bias = self.bias_gnn)
-
 
             with torch.no_grad():
                 if self.mp_nn == "gcn":
@@ -124,52 +118,3 @@ class GraphLayer(nn.Module):
         #     x = self.linear[i](x)
         #     x =  F.dropout(x, training=self.training)
         return x
-
-
-# def equal_(self):
-#     for (n,p),(_,pc) in zip(self.model.named_parameters(),self.mc.named_parameters()):
-#         # print(i,n,p.grad,sep='\t')
-#         if not torch.all(p.eq(pc)).data:
-#             print(n,"\n", p.eq(pc),sep='\t')
-#         else:
-#             return True
-# print("Initial parameters")
-
-# edge_index = torch.tensor([[0, 1],
-#                            [1, 0],
-#                            [1, 2],
-#                            [2, 1],
-#                            ], dtype=torch.long).t().contiguous()
-
-# x = torch.tensor([[-1,2], [0,3], [1,5]], dtype=torch.float)
-
-# geo = GraphLayer(channels_gnn = [x.shape[1],3,5], channels_mlp=[8,3], num_class=5)
-
-# for n,p in geo.named_parameters():
-#     print(n,p,end="\n")
-
-# out_ini = geo(x,edge_index)
-# print("Output",out_ini)
-
-# print("--"*120,"\nUpdated parameters")
-# wgt_add_gnn = [1,2]
-# wgt_add_mlp = [7,3]
-# geo.weight_update(wgt_add_gnn,wgt_add_mlp)
-
-# for n,p in geo.named_parameters():
-#     print(n,p,end="\n")
-
-# out_upd = geo(x,edge_index)
-# print(out_upd)
-
-# print("*"*120)
-# print("Update again!")
-# wgt_add_gnn = [4,2]
-# wgt_add_mlp = [7,5]
-# geo.weight_update(wgt_add_gnn,wgt_add_mlp)
-
-# for n,p in geo.named_parameters():
-#     print(n,p,end="\n")
-# print("-"*100)
-# out_upd = geo(x,edge_index)
-# print(out_upd)
