@@ -10,7 +10,7 @@
 
  Disclaimer: This code is inspired from [here](https://github.com/GraphNAS/GraphNAS). For the comparative baselines, refer [here](https://github.com/hhliu79/TWP).
 
- Cite our paper to use this code:
+ Cite this paper/code as below:
 
 ```yaml
 @inproceedings{10.1145/3511808.3557427,
